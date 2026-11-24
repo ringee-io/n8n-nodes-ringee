@@ -1,0 +1,81 @@
+{
+	"name": "n8n-nodes-ringee",
+	"version": "0.1.0",
+	"description": "Ringee community node for n8n: start AI voice agent phone calls, read call results, transcripts and recordings, manage contacts, and react to call events.",
+	"license": "MIT",
+	"homepage": "https://ringee.io",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"ringee",
+		"phone",
+		"calls",
+		"voice",
+		"ai-voice-agent",
+		"telephony",
+		"voip",
+		"dialer",
+		"sales-automation"
+	],
+	"author": {
+		"name": "Ringee",
+		"email": "support@ringee.io",
+		"url": "https://ringee.io"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ringee-io/n8n-nodes-ringee.git"
+	},
+	"bugs": {
+		"url": "https://github.com/ringee-io/n8n-nodes-ringee/issues"
+	},
+	"engines": {
+		"node": ">=20.19"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"typecheck": "tsc --noEmit -p tsconfig.test.json",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:integration": "vitest run --config vitest.integration.config.ts",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"validate": "npm run lint && npm run typecheck && npm run test && npm run build && npm run pack:check",
+		"pack:check": "node scripts/check-package.mjs",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease",
+		"docs:templates": "node scripts/build-template-docs.mjs",
+		"validate:templates": "node scripts/validate-workflows.mjs"
+	},
+	"files": [
+		"dist"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/RingeeApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Ringee/Ringee.node.js",
+			"dist/nodes/RingeeTrigger/RingeeTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "^0.58.5",
+		"@types/node": "^22.10.0",
+		"eslint": "9.32.0",
+		"n8n-workflow": "^2.49.3",
+		"prettier": "3.6.2",
+		"release-it": "^21.1.0",
+		"typescript": "5.9.2",
+		"vitest": "^3.2.0"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

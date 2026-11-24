@@ -1,0 +1,19 @@
+{
+	"node": "n8n-nodes-ringee.ringee",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Communication", "Sales"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/ringee-io/n8n-nodes-ringee#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/ringee-io/n8n-nodes-ringee#readme"
+			}
+		]
+	},
+	"alias": ["phone", "call", "voice", "telephony", "dialer", "ai voice agent", "sales", "voip"]
+}

@@ -1,0 +1,158 @@
+{
+  "name": "Ringee: Make your first AI phone call from n8n",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Make your first AI phone call\nThis places **one real call**: an AI voice agent phones the number below, then you read what happened.\n\n1. Connect your **Ringee API** credential on both Ringee nodes.\n2. In *Start AI call*, pick your agent and replace the phone number with **your own test number**.\n3. Click **Execute workflow**.\n\nStart Call returns at once; the call is still ringing. The second node waits two minutes and reads the result. In real workflows, react to the call ending with a **Ringee Trigger** instead of waiting (see the other templates).\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)\n\nEvery click starts a new call. If n8n retries one click, the node still makes sure it is dialed once.",
+        "height": 330,
+        "width": 440,
+        "color": 4
+      },
+      "id": "97fd8bec-6846-5894-885e-c2bad876d65f",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 160,
+        "width": 440,
+        "color": 3
+      },
+      "id": "b67da179-749d-5794-8e95-84d95246ab4a",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        270
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "40e00728-f5b0-5697-b891-47e9a6022e29",
+      "name": "When you click Execute",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "+14155550123",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "Alex",
+            "notification": "a quick test of my new phone automation"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "quick-start-1"
+        }
+      },
+      "id": "c31828aa-f5ac-5182-aac2-c6e244716441",
+      "name": "Start AI call",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        500,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "f6a0cb2d-5755-5c21-9cb7-e729b28bbb36",
+      "name": "Wait two minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        60
+      ],
+      "webhookId": "3cb7474f-dd53-5a1d-9a42-2c4bc3ce2214"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Start AI call').item.json.call_id }}"
+      },
+      "id": "a79493ff-7cae-53b5-b6dc-c01ca9e3a134",
+      "name": "Get call result",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        980,
+        60
+      ]
+    }
+  ],
+  "connections": {
+    "When you click Execute": {
+      "main": [
+        [
+          {
+            "node": "Start AI call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start AI call": {
+      "main": [
+        [
+          {
+            "node": "Wait two minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait two minutes": {
+      "main": [
+        [
+          {
+            "node": "Get call result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "759ed541-2687-5161-bbce-384bc90b84de",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

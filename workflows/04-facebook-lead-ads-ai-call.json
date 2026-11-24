@@ -1,0 +1,420 @@
+{
+  "name": "Call Facebook Lead Ads leads in minutes with a Ringee AI voice agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Facebook Lead Ads → AI call → CRM\nThe moment someone submits your Facebook lead form, an AI voice agent phones them while they still remember the ad. When the call ends, they are created or updated in HubSpot (when the form gave an email). The call itself, with its summary, stays in Ringee.\n\n**Speed matters:** leads contacted within five minutes convert far better than leads contacted the next day.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 260,
+        "width": 470,
+        "color": 4
+      },
+      "id": "73f76c96-c866-550b-b0ec-61c0ae7a4516",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Completed* and *Call Failed*.\n\nChoose your **Facebook page and form** in the trigger. Your form must ask for a phone number (field `phone_number`) and ask people to agree to be called. Connect **Facebook Lead Ads** and **HubSpot**.",
+        "height": 340,
+        "width": 470,
+        "color": 5
+      },
+      "id": "56463db0-96fd-52c3-b370-4535bd637165",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "2a87f0cf-9226-54c4-aa49-d5d7ac086872",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "event": "newLead",
+        "page": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "form": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {
+          "simplifyOutput": true
+        }
+      },
+      "id": "76703aa6-da28-5bc4-aecc-11fa74f1e899",
+      "name": "New Facebook lead",
+      "type": "n8n-nodes-base.facebookLeadAdsTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8323019-fba2-5bcf-b36a-8df089200732",
+              "name": "phone",
+              "value": "={{ String($json.phone_number || $json.phone || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "59554569-260f-50bd-8c38-1bf457f290d4",
+              "name": "fullName",
+              "value": "={{ $json.full_name || ((($json.first_name || '') + ' ' + ($json.last_name || '')).trim()) }}",
+              "type": "string"
+            },
+            {
+              "id": "7138ac10-bd32-57aa-88af-952ade08571c",
+              "name": "email",
+              "value": "={{ $json.email || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "652d51f4-4d3d-5396-90ee-212f9be19cd4",
+              "name": "leadId",
+              "value": "={{ $json.id || $json.lead_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "33b4e236-7cb6-5504-87a4-9317efcb2142",
+      "name": "Prepare lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        500,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "573dbe31-ea9d-5120-b4df-6600aa71ed5d",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "377140b4-712f-5857-89e8-b2f9280e422f",
+      "name": "Has a phone number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        740,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $json.phone }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "={{ String($json.fullName || 'there').split(' ')[0] }}",
+            "email": "={{ $json.email }}",
+            "reason": "You asked us to contact you through our Facebook ad"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'fb-' + $json.leadId }}",
+          "idempotencyKey": "={{ 'fb-' + $json.leadId }}"
+        }
+      },
+      "id": "dfb412a2-2423-558c-89a2-4581fc700394",
+      "name": "Start the first call",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        980,
+        -180
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "3b639185-bc0e-545a-b383-6fc87c3090c6",
+      "name": "No phone number: skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.completed",
+          "call.failed"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true,
+          "externalIdPrefix": "fb-"
+        }
+      },
+      "id": "55ce09d7-ff42-589b-9189-0b5558e1d3f2",
+      "name": "Call ended",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        240
+      ],
+      "webhookId": "e3058970-ff5c-58ca-8da9-31912ae44bcf"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "contact",
+        "operation": "upsert",
+        "email": "={{ $('Call ended').item.json.data.call?.contact?.email }}",
+        "additionalFields": {
+          "phoneNumber": "={{ $('Call ended').item.json.data.toNumber }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": []
+          }
+        }
+      },
+      "id": "2dd640a5-1c0d-538c-a2d5-0dee979b66c5",
+      "name": "Save to HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        980,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d9204150-3fcc-52e5-b64d-508a9a29caea",
+              "leftValue": "={{ $('Call ended').item.json.data.call?.contact?.email || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d836cbc9-620e-5004-a7f6-814d7d0b9877",
+      "name": "Has an email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        740,
+        240
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "fbe76af2-8958-5ecd-aabc-f6176bde5473",
+      "name": "No email: not saved to HubSpot",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "New Facebook lead": {
+      "main": [
+        [
+          {
+            "node": "Prepare lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare lead": {
+      "main": [
+        [
+          {
+            "node": "Has a phone number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a phone number?": {
+      "main": [
+        [
+          {
+            "node": "Start the first call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No phone number: skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call ended": {
+      "main": [
+        [
+          {
+            "node": "Has an email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has an email?": {
+      "main": [
+        [
+          {
+            "node": "Save to HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No email: not saved to HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Call ended": [
+      {
+        "json": {
+          "event": "call.completed",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "externalId": "fb-sample-lead-1",
+            "fromNumber": "+14155550100",
+            "toNumber": "+14155550123",
+            "status": "completed",
+            "direction": "outbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "afe2c981-6035-58ba-91f3-a9463a15f32c",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

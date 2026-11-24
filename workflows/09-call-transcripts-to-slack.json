@@ -1,0 +1,372 @@
+{
+  "name": "Post call summaries and transcripts to Slack automatically with Ringee",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Call transcripts → Slack\nEvery time a call recording is ready, this workflow posts the AI summary, the opening of the transcript and a link to the call to Slack.\n\nRingee has no separate “transcript ready” event. The transcript travels with **Recording Ready** (and with the call events), and when it is not there yet this workflow waits and asks for it.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 250,
+        "width": 470,
+        "color": 4
+      },
+      "id": "7dd2901b-b975-5b84-a29b-e19e24dee3a4",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Recording Ready*.\n\nConnect **Slack** and pick the channel. Recordings and transcripts are sensitive: post them only to a private channel your team is allowed to see, and follow your recording-consent rules.",
+        "height": 340,
+        "width": 470,
+        "color": 5
+      },
+      "id": "396612bd-bd6e-5267-8b0d-97ba1cb1268e",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -30
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "recording.ready"
+        ],
+        "options": {}
+      },
+      "id": "4c285002-062b-572e-868f-f0d573e4a913",
+      "name": "Recording ready",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -80
+      ],
+      "webhookId": "7a0ae0b7-2266-5635-a2a4-e5dc8f815b26"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "eea4bfd8-4209-5a77-98d1-186940fa4e57",
+              "leftValue": "={{ $json.data.call?.transcription?.text || $json.data.transcript || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e8bf8377-6044-54a0-81dc-0e0f9d1401f1",
+      "name": "Transcript included?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        500,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "id": "926d3a12-e79a-54df-bb2d-985a7eb65be5",
+      "name": "Wait 3 minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        100
+      ],
+      "webhookId": "6ca3e6f3-c6fe-58cd-a567-2575f428ab86"
+    },
+    {
+      "parameters": {
+        "resource": "transcript",
+        "operation": "get",
+        "callId": "={{ $('Recording ready').item.json.data.callId }}",
+        "includeSegments": false
+      },
+      "id": "63397061-b66e-55ca-8ae2-2e45070bac91",
+      "name": "Get transcript",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "transcript",
+        "operation": "getSummary",
+        "callId": "={{ $('Recording ready').item.json.data.callId }}"
+      },
+      "id": "2f288247-b739-5dbf-a26a-d2a37495d59e",
+      "name": "Get AI summary",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "76b3d9a0-7e15-5124-8171-522ec158468b",
+              "name": "text",
+              "value": "={{ ($('Get transcript').item?.json.text || $('Recording ready').item.json.data.call?.transcription?.text || $('Recording ready').item.json.data.transcript || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "521e880e-4102-5d69-81aa-8edf72ea7ba5",
+              "name": "summary",
+              "value": "={{ $json.summary || $('Recording ready').item.json.data.call?.voiceAgentCall?.summary || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ecf19cca-f47e-58cd-acde-1420898a750c",
+      "name": "Write the Slack message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "76b3d9a0-7e15-5124-8171-522ec158468b",
+              "name": "text",
+              "value": "={{ $json.data.call?.transcription?.text || $json.data.transcript || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "521e880e-4102-5d69-81aa-8edf72ea7ba5",
+              "name": "summary",
+              "value": "={{ $json.data.call?.voiceAgentCall?.summary || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e6652a61-c4d4-54df-9647-760099c5d58f",
+      "name": "Write the Slack message (transcript already here)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        740,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#call-notes",
+          "mode": "name"
+        },
+        "text": "={{ ':studio_microphone: *Call recorded*' + ($('Recording ready').item.json.data.call?.toNumber ? ' with ' + $('Recording ready').item.json.data.call.toNumber : '') + '\\n' + ($json.summary ? '*Summary:* ' + $json.summary + '\\n' : '') + '*Transcript:* ' + ($json.text ? $json.text.slice(0, 700) + ($json.text.length > 700 ? '…' : '') : '_not available yet_') }}",
+        "otherOptions": {}
+      },
+      "id": "7406c7c1-adfb-5f40-9acf-1baacb6675c9",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        1700,
+        -20
+      ]
+    }
+  ],
+  "connections": {
+    "Recording ready": {
+      "main": [
+        [
+          {
+            "node": "Transcript included?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcript included?": {
+      "main": [
+        [
+          {
+            "node": "Write the Slack message (transcript already here)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 3 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get transcript": {
+      "main": [
+        [
+          {
+            "node": "Get AI summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AI summary": {
+      "main": [
+        [
+          {
+            "node": "Write the Slack message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write the Slack message": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write the Slack message (transcript already here)": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Recording ready": [
+      {
+        "json": {
+          "event": "recording.ready",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "externalId": "sample",
+            "fromNumber": "+14155550100",
+            "toNumber": "+14155550123",
+            "status": "completed",
+            "direction": "outbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed",
+                "outcome": "confirmed",
+                "summary": "Ada confirmed she will attend tomorrow at 3 PM."
+              },
+              "transcription": {
+                "status": "completed",
+                "language": "en",
+                "text": "Hi Ada, this is Sofia calling from Ringee. I wanted to confirm your demo tomorrow at 3 PM. Yes, I will be there. Perfect, see you then."
+              }
+            },
+            "recordingId": "rec_sample",
+            "url": "https://recordings.example.test/rec_sample.mp3",
+            "format": "mp3",
+            "durationSec": 72
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "93cc90f3-1cbb-5fc6-b052-4a47b39095d0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

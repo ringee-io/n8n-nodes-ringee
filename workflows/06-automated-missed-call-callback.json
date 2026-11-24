@@ -1,0 +1,224 @@
+{
+  "name": "Call back missed calls automatically with a Ringee AI voice agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Missed call callback\nWhen someone calls your Ringee number and nobody answers, an AI voice agent calls them back a few minutes later, and every callback is logged in a Google Sheet.\n\nThe callback is placed **once per missed call**: the missed call's ID is the Idempotency Key.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 230,
+        "width": 470,
+        "color": 4
+      },
+      "id": "d22a8a38-936a-5ded-93e6-6a93d506e24c",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Missed*.\n\nUse an **Appointment Booking** agent. Create a sheet **Callback log** with columns `Time`, `Caller`, `Our number`, `Callback call`, `Reason`.\n\n**Callbacks are limited.** Each number is called back at most once every four hours, so a caller who rings ten times is not called ten times, and two Ringee numbers running this workflow cannot call each other back forever.",
+        "height": 410,
+        "width": 470,
+        "color": 5
+      },
+      "id": "e6ccaca0-9fa4-5bd1-9999-ecbf9ce1df0f",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -50
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent**\nThe person phoned you first, which usually allows one callback. Check your local rules about calling back, and keep calls inside reasonable hours: the *Wait* node below delays the call, and you can add a time check before it.",
+        "height": 190,
+        "width": 400,
+        "color": 3
+      },
+      "id": "4184da7e-f71d-5979-92fa-3bef87cbffab",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.missed"
+        ],
+        "options": {}
+      },
+      "id": "31f2530e-bf13-5e9d-94fb-c36355f106ee",
+      "name": "Missed call",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -40
+      ],
+      "webhookId": "3e29fb2f-c4e9-5f04-95ee-97e89308a208"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "66030103-2dc9-5b62-ab19-a19cd88225c1",
+      "name": "Wait 5 minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        -40
+      ],
+      "webhookId": "f54f3a01-34b4-58ca-a67c-e6ea82a0f735"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $('Missed call').item.json.data.fromNumber }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "there",
+            "reason": "You called us a few minutes ago and we missed your call"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'callback-' + $('Missed call').item.json.data.callId }}",
+          "idempotencyKey": "={{ 'callback-' + String($('Missed call').item.json.data.fromNumber).replace(/[^\\d+]/g, '') + '-' + Math.floor($now.toMillis() / 14400000) }}"
+        }
+      },
+      "id": "e2056cae-eb4a-503f-9ee9-5c4af730f995",
+      "name": "Call them back",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Time": "={{ $('Missed call').item.json.occurredAt }}",
+            "Caller": "={{ $('Missed call').item.json.data.fromNumber }}",
+            "Our number": "={{ $('Missed call').item.json.data.toNumber }}",
+            "Callback call": "={{ $json.call_id }}",
+            "Reason": "={{ $('Missed call').item.json.data.reason || 'Not answered' }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7c13d79a-6d57-5133-b112-a4067acc2bc1",
+      "name": "Log the callback",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        980,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Missed call": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Call them back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call them back": {
+      "main": [
+        [
+          {
+            "node": "Log the callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Missed call": [
+      {
+        "json": {
+          "event": "call.missed",
+          "eventId": "evt_sample_0003",
+          "occurredAt": "2026-11-24T15:10:00.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000009",
+            "fromNumber": "+14155550123",
+            "toNumber": "+14155550100",
+            "occurredAt": "2026-11-24T15:10:00.000Z",
+            "reason": "No one answered"
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e8174469-d6bb-5219-83ea-d4da030151d0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# Cancel in-progress runs for the same branch/PR to avoid wasting CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (n8n's official rules, strict mode)
+        run: npm run lint
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Type-check
+        run: npm run typecheck
+
+      # Unit tests and the mock-API tests. No network, never a real call.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # What would be published: complete, clean, and installable on its own
+      # (installs the real tarball into an empty folder and loads every node).
+      - name: Check the package
+        run: node scripts/check-package.mjs --install
+
+      # n8n's own pre-publish scan (restricted imports, security rules).
+      - name: n8n community package scan
+        run: npx --yes @n8n/scan-community-package .

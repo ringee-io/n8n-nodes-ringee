@@ -1,0 +1,455 @@
+{
+  "name": "Notify your team about every AI receptionist call with a structured summary",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI receptionist → team notification\nYour Ringee **AI receptionist** answers incoming calls. When a call ends, this workflow reads what the AI learned, shapes it into a clean record and posts it to Slack so nobody has to listen to a recording.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 200,
+        "width": 470,
+        "color": 4
+      },
+      "id": "27e65d20-78e6-5f9e-9eab-edbf1f3c923d",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Completed*.\n\nAssign an AI **Receptionist** agent to a number in Ringee, and connect **Slack**. Tell the receptionist what to collect (name, reason, urgency, callback number); it arrives in *extractedData*.",
+        "height": 330,
+        "width": 470,
+        "color": 5
+      },
+      "id": "9d28a7be-a6c9-56a5-8488-7037077ed42b",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Privacy and consent**\nCallers should be told that an AI answers and that the call may be recorded and summarised; many places require consent to record. This workflow copies a summary into Slack, so post only to a private channel your team is allowed to see.",
+        "height": 190,
+        "width": 400,
+        "color": 3
+      },
+      "id": "f41b677e-5550-585b-9db1-03131b1a34d5",
+      "name": "Privacy",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.completed"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true
+        }
+      },
+      "id": "0f9b7138-8fcd-57c7-9799-c014f6c6cad1",
+      "name": "Incoming AI call ended",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -60
+      ],
+      "webhookId": "28c06a65-bf18-5e87-9171-e8c19e478c45"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "da47d747-2e9e-53f8-aa44-d5bb0f6721c4",
+              "leftValue": "={{ $json.data.direction }}",
+              "rightValue": "inbound",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8b6226e9-29c3-5709-a65d-5470b8050f7d",
+      "name": "Only inbound calls",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        500,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "c33f06a2-da6c-5b77-ba86-af0cae1d43dc",
+      "name": "Wait for the AI analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        -160
+      ],
+      "webhookId": "474cf241-2fc6-520d-91aa-259ec128a1d4"
+    },
+    {
+      "parameters": {
+        "resource": "transcript",
+        "operation": "getAnalysis",
+        "callId": "={{ $('Incoming AI call ended').item.json.data.callId }}"
+      },
+      "id": "98a618a3-daec-5657-8158-975f0bcb3c7f",
+      "name": "Get AI analysis",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        980,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "db1dfc19-a38c-50fb-a91f-7e12b742710a",
+              "name": "caller",
+              "value": "={{ $('Incoming AI call ended').item.json.data.fromNumber }}",
+              "type": "string"
+            },
+            {
+              "id": "bc67fdf6-74d3-5542-b54f-9a68cf34c4ee",
+              "name": "callerName",
+              "value": "={{ $json.extractedData?.name || $json.extractedData?.caller_name || 'Unknown caller' }}",
+              "type": "string"
+            },
+            {
+              "id": "26318fbb-b733-5642-9d2e-3f8cfbcd7eb8",
+              "name": "reason",
+              "value": "={{ $json.extractedData?.reason || $json.summary || 'Not captured' }}",
+              "type": "string"
+            },
+            {
+              "id": "e7569aec-64d1-55db-ac08-8f53223937cc",
+              "name": "urgency",
+              "value": "={{ $json.ready ? ($json.extractedData?.urgency || 'normal') : 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "34b4f424-c545-57f3-9afc-20c49c45e7a2",
+              "name": "callbackNumber",
+              "value": "={{ $json.extractedData?.callback_number || $('Incoming AI call ended').item.json.data.fromNumber }}",
+              "type": "string"
+            },
+            {
+              "id": "521e880e-4102-5d69-81aa-8edf72ea7ba5",
+              "name": "summary",
+              "value": "={{ $json.ready ? ($json.summary || 'No summary') : 'The analysis is not ready yet: open the call in Ringee.' }}",
+              "type": "string"
+            },
+            {
+              "id": "d158379b-2469-5dc8-9b55-eef6982e3782",
+              "name": "sentiment",
+              "value": "={{ $json.sentiment || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7336aeae-086b-55ab-a51d-f9269cd3482d",
+      "name": "Shape the record",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1220,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#front-desk",
+          "mode": "name"
+        },
+        "text": "={{ ($json.urgency === 'high' ? ':rotating_light: ' : $json.urgency === 'unknown' ? ':grey_question: ' : ':telephone_receiver: ') + '*New call from ' + $json.callerName + '*\\nReason: ' + $json.reason + '\\nCall back: ' + $json.callbackNumber + '\\n' + $json.summary }}",
+        "otherOptions": {}
+      },
+      "id": "6acb6548-80ad-5339-a2dc-f586a50d87c4",
+      "name": "Tell the team on Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        1460,
+        -160
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cca5e745-3e76-5265-b267-d5a6efd15c61",
+      "name": "Skipped: not an inbound call",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        740,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bc25521d-5e65-5b25-a525-0995129d8cc7",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bbe21850-68c1-5333-a2ed-c351b81f43f5",
+      "name": "Analysis ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1220,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "5bc762b0-27b4-5b14-bae7-b5ef0643faff",
+      "name": "Wait 5 more minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        60
+      ],
+      "webhookId": "7f1fd5bb-02db-5823-ad01-479d07ca655a"
+    },
+    {
+      "parameters": {
+        "resource": "transcript",
+        "operation": "getAnalysis",
+        "callId": "={{ $('Incoming AI call ended').item.json.data.callId }}"
+      },
+      "id": "96551cd6-3c04-5ee5-8fc9-65028a5f5b73",
+      "name": "Get AI analysis (second try)",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        60
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming AI call ended": {
+      "main": [
+        [
+          {
+            "node": "Only inbound calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only inbound calls": {
+      "main": [
+        [
+          {
+            "node": "Wait for the AI analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped: not an inbound call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the AI analysis": {
+      "main": [
+        [
+          {
+            "node": "Get AI analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AI analysis": {
+      "main": [
+        [
+          {
+            "node": "Analysis ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape the record": {
+      "main": [
+        [
+          {
+            "node": "Tell the team on Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis ready?": {
+      "main": [
+        [
+          {
+            "node": "Shape the record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 5 more minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 more minutes": {
+      "main": [
+        [
+          {
+            "node": "Get AI analysis (second try)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get AI analysis (second try)": {
+      "main": [
+        [
+          {
+            "node": "Shape the record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Incoming AI call ended": [
+      {
+        "json": {
+          "event": "call.completed",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "fromNumber": "+14155550123",
+            "toNumber": "+14155550100",
+            "status": "completed",
+            "direction": "inbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0645aaf8-ff41-5c78-8611-9d8fbc91465d",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

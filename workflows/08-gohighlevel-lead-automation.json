@@ -1,0 +1,468 @@
+{
+  "name": "Call new GoHighLevel leads with a Ringee AI voice agent and update the opportunity",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## GoHighLevel → AI call → opportunity\nA GoHighLevel workflow sends each new lead to n8n. An AI voice agent calls them and, when the call ends, the opportunity is marked **lost** if the person is not interested, or kept **open** with the AI's note.\n\n**Send leads here:** in GoHighLevel add a *Webhook* action that POSTs `{ \"name\": \"Ada Lovelace\", \"phone\": \"+14155550123\", \"email\": \"ada@example.com\", \"opportunityId\": \"opp_123\" }` to this workflow's webhook URL.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 300,
+        "width": 500,
+        "color": 4
+      },
+      "id": "f7bf12b9-dd85-5efc-8143-3086493c8134",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Completed* and *Call Failed*.\n\nConnect **HighLevel** on the last node and choose the pipeline stage you want in *Update Fields*.\n\n**Protect the webhook.** The *New lead from GoHighLevel* node starts a paid call for whatever number it receives, so it requires authentication and will not activate until you choose a credential. In n8n create a **Header Auth** credential (any header name, for example `X-Webhook-Secret`, and a long random value), select it on that node, and make the GoHighLevel webhook action send the same header. Never share the URL without it.",
+        "height": 460,
+        "width": 500,
+        "color": 5
+      },
+      "id": "868e4cd0-5eb7-5a07-9889-5af718652bde",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "14e7e9ef-648d-5e6e-bde5-5167645113d8",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        270,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ringee-ghl-lead",
+        "responseMode": "onReceived",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "4e77c7d8-e070-51c6-90e0-17bccc0e1d46",
+      "name": "New lead from GoHighLevel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        270,
+        -100
+      ],
+      "webhookId": "8c76a0ff-f9f8-50e8-8c77-4db862786bdf"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $json.body.phone }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "={{ String($json.body.name || 'there').split(' ')[0] }}",
+            "last_name": "={{ String($json.body.name || '').split(' ').slice(1).join(' ') }}",
+            "email": "={{ $json.body.email || \"\" }}",
+            "reason": "You asked for information through our website"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'ghl-' + $json.body.opportunityId }}",
+          "idempotencyKey": "={{ 'ghl-' + $json.body.opportunityId }}"
+        }
+      },
+      "id": "c9986427-a9f5-57bf-acc1-ed93a0bf6a0a",
+      "name": "Start the call",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        510,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.completed",
+          "call.failed"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true,
+          "externalIdPrefix": "ghl-"
+        }
+      },
+      "id": "759f5c9e-c34c-5633-9f09-b2963403ace1",
+      "name": "Call ended",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        270,
+        240
+      ],
+      "webhookId": "35d0862c-305c-57f7-976a-ce4a9ad8ca57"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "de687b10-231d-5ca5-8936-3292fb14736e",
+      "name": "Wait for the AI analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        510,
+        240
+      ],
+      "webhookId": "52ec7149-fbbd-51e1-9b16-74f8c10ba511"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Call ended').item.json.data.call?.voiceAgentCall?.id || $('Call ended').item.json.data.agentCallId }}"
+      },
+      "id": "dcc559fe-faf0-5da7-b58e-f8b1129aa427",
+      "name": "Get call result",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        750,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "opportunity",
+        "operation": "update",
+        "opportunityId": "={{ $('Call ended').item.json.data.externalId.replace('ghl-', '') }}",
+        "updateFields": {
+          "status": "={{ ['not_interested', 'wrong_number'].includes($json.outcome) ? 'lost' : 'open' }}"
+        }
+      },
+      "id": "db0122bd-0750-526c-afcc-00cc21a46d3b",
+      "name": "Update the opportunity",
+      "type": "n8n-nodes-base.highLevel",
+      "typeVersion": 2,
+      "position": [
+        990,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1a312479-b00d-5609-b280-97eabb5344ed",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "8f79fa0f-d46e-59f8-89af-53fb37fa0139",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "7c24517c-4d2f-521f-a92c-89442fe06c92",
+      "name": "Analysis ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        990,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "e35854b5-5305-5fdf-92a5-412d22312b28",
+      "name": "Wait 5 more minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        990,
+        460
+      ],
+      "webhookId": "3578b82a-b95a-5aa2-8bd5-349ba9b3d941"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Call ended').item.json.data.call?.voiceAgentCall?.id || $('Call ended').item.json.data.agentCallId }}"
+      },
+      "id": "04ef3a20-dff9-5284-8de4-e80adf7afd4e",
+      "name": "Get call result (second try)",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1230,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "47f428ab-b275-525d-8f7d-170d05827520",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "797d510e-b939-50d2-a328-66f6e5eef27c",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "ae0cd124-e7cf-5e4f-8f35-a1bba832a3cb",
+      "name": "Ready now?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1470,
+        460
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "71c7cd6a-d51d-582a-9db0-c981ccf13b50",
+      "name": "Gave up: check the call in Ringee",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1710,
+        540
+      ]
+    }
+  ],
+  "connections": {
+    "New lead from GoHighLevel": {
+      "main": [
+        [
+          {
+            "node": "Start the call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call ended": {
+      "main": [
+        [
+          {
+            "node": "Wait for the AI analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the AI analysis": {
+      "main": [
+        [
+          {
+            "node": "Get call result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result": {
+      "main": [
+        [
+          {
+            "node": "Analysis ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis ready?": {
+      "main": [
+        [
+          {
+            "node": "Update the opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 5 more minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 more minutes": {
+      "main": [
+        [
+          {
+            "node": "Get call result (second try)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result (second try)": {
+      "main": [
+        [
+          {
+            "node": "Ready now?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready now?": {
+      "main": [
+        [
+          {
+            "node": "Update the opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gave up: check the call in Ringee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Call ended": [
+      {
+        "json": {
+          "event": "call.completed",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "externalId": "ghl-opp_123",
+            "fromNumber": "+14155550100",
+            "toNumber": "+14155550123",
+            "status": "completed",
+            "direction": "outbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4fc7678c-12a3-5f9f-acbd-5b8fc8b31321",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

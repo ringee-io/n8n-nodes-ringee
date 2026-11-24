@@ -1,0 +1,569 @@
+{
+  "name": "AI appointment reminder with plain HTTP Request nodes (no community node needed)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## AI appointment reminder: HTTP Request version\nThe same idea as the Ringee-node template, built only from n8n's built-in **HTTP Request** nodes. Use it to try Ringee on **n8n Cloud**, or anywhere community nodes are not installed.\n\nSchedule → meetings in about an hour → one AI call each → wait → read the result → colour the event.\n\n**Credential:** create an n8n **Header Auth** credential named `Ringee API key`: header name `X-Ringee-Api-Key`, value your `cik_live_…` key. Select it on both HTTP Request nodes. Replace `YOUR_AGENT_ID` with the ID of your AI voice agent (Ringee → AI Voice Agents).\n\nPrefer the Ringee node when you can: it picks agents from a list, validates inputs and handles retries safely.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 400,
+        "width": 520,
+        "color": 4
+      },
+      "id": "bc71bab6-b38d-51ed-9e48-bd548a33a53d",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "89833eb8-25f9-519b-ba16-defe3e398afb",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        280,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "afce40c5-5e7f-50bd-abc5-f4b86e6eb655",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        280,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "returnAll": false,
+        "limit": 50,
+        "timeMin": "={{ $now.plus({ minutes: 55 }).toISO() }}",
+        "timeMax": "={{ $now.plus({ minutes: 70 }).toISO() }}",
+        "options": {
+          "recurringEventHandling": "expand",
+          "orderBy": "startTime"
+        }
+      },
+      "id": "ae6632a0-0edf-5521-a000-931a88a88918",
+      "name": "Meetings in about an hour",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8323019-fba2-5bcf-b36a-8df089200732",
+              "name": "phone",
+              "value": "={{ ($json.description || '').match(/Phone:[ \\t]*(\\+?[\\d \\t().-]{7,})/i)?.[1]?.replace(/[^\\d+]/g, '') || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "bf35c9a7-aee2-5481-a5c1-6a45eeefb28f",
+              "name": "firstName",
+              "value": "={{ (($json.description || '').match(/Name:\\s*([^\\n\\r]+)/i)?.[1] || 'there').trim().split(' ')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "9e34c57b-e2dc-53c8-8db0-643d528738f7",
+              "name": "eventId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "ce84d1a8-ccd1-58ac-bcca-a2b2449628f0",
+              "name": "title",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "55f6d3a2-0a53-5e74-8027-071febe84c93",
+              "name": "date",
+              "value": "={{ DateTime.fromISO($json.start.dateTime || $json.start.date).setZone($now.zoneName).toFormat('LLLL d') }}",
+              "type": "string"
+            },
+            {
+              "id": "4e22411e-7e14-5377-8840-757c37cf4d0c",
+              "name": "time",
+              "value": "={{ DateTime.fromISO($json.start.dateTime || $json.start.date).setZone($now.zoneName).toFormat('h:mm a') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b6f26ae-7feb-5888-be8c-e139ab3d945b",
+      "name": "Prepare reminder",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        760,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "573dbe31-ea9d-5120-b4df-6600aa71ed5d",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a40bd0e2-266c-5938-950f-25f6044f3c3b",
+      "name": "Has a phone number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1000,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.ringee.io/api/v1/ai-voice-agents/YOUR_AGENT_ID/calls",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ 'reminder-' + $json.eventId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ to: $json.phone, variables: { first_name: $json.firstName, notification: $json.title, appointment_date: $json.date, appointment_time: $json.time }, metadata: { external_id: 'reminder-' + $json.eventId } }) }}",
+        "options": {}
+      },
+      "id": "58194cb8-b953-59ff-a0ae-c44fb93cd52c",
+      "name": "Start the call (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1240,
+        -200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "eb7cb4e8-5b45-5166-aec2-44d6ce8b48dd",
+      "name": "Skipped: no phone in the event",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "a7b31e28-7b83-5b50-856d-7d479abbf2d8",
+      "name": "Wait 5 minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1480,
+        -200
+      ],
+      "webhookId": "8cd0805e-21b5-5e22-a33c-04a9eac912f0"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.ringee.io/api/v1/ai-voice-agents/calls/{{ $('Start the call (HTTP)').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "041823b7-33fc-5ca9-ab7c-bc6fb8f640ab",
+      "name": "Read the result (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1720,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9d6e0a74-54eb-55db-94d7-c255e489e5da",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a01bbc26-f04d-5790-bd3d-4c1d80906849",
+      "name": "Result ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1960,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "674722bc-514a-59a0-82db-73d7e1446a20",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "confirmed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Will attend"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "85fb0fb0-b0d9-507f-9f30-0702e299b378",
+                    "leftValue": "={{ $json.outcome }}",
+                    "rightValue": "cannot_attend",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Can't attend"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Something else"
+        }
+      },
+      "id": "7b7a827d-833a-5a17-8db7-72403319ef67",
+      "name": "What did they say?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.5,
+      "position": [
+        2200,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "eventId": "={{ $('Prepare reminder').item.json.eventId }}",
+        "useDefaultReminders": true,
+        "updateFields": {
+          "color": "10"
+        }
+      },
+      "id": "3cd121df-2f86-5971-81c6-ecc89999b880",
+      "name": "Colour green: will attend",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2460,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "eventId": "={{ $('Prepare reminder').item.json.eventId }}",
+        "useDefaultReminders": true,
+        "updateFields": {
+          "color": "11"
+        }
+      },
+      "id": "11641358-3e25-5c7f-8820-e9dd5e1fd4a0",
+      "name": "Colour red: cannot attend",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2460,
+        -230
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "eventId": "={{ $('Prepare reminder').item.json.eventId }}",
+        "useDefaultReminders": true,
+        "updateFields": {
+          "color": "5"
+        }
+      },
+      "id": "7a2e60d5-6cb9-5c6d-90d3-ae98007b7b80",
+      "name": "Colour yellow: needs a person",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2460,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "3cb31859-5333-5d2f-a0e2-2a0a773da68f",
+      "name": "Not ready yet: check in Ringee",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        -60
+      ]
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Meetings in about an hour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meetings in about an hour": {
+      "main": [
+        [
+          {
+            "node": "Prepare reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare reminder": {
+      "main": [
+        [
+          {
+            "node": "Has a phone number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a phone number?": {
+      "main": [
+        [
+          {
+            "node": "Start the call (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped: no phone in the event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start the call (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Read the result (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the result (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Result ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result ready?": {
+      "main": [
+        [
+          {
+            "node": "What did they say?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not ready yet: check in Ringee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "What did they say?": {
+      "main": [
+        [
+          {
+            "node": "Colour green: will attend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Colour red: cannot attend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Colour yellow: needs a person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "79b01dbf-afdf-5c28-87ed-15f552525eb6",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

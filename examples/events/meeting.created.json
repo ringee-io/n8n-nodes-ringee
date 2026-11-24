@@ -1,0 +1,26 @@
+{
+	"event": "meeting.created",
+	"eventId": "evt_example_meeting_created",
+	"occurredAt": "2026-11-24T15:03:00.000Z",
+	"workspaceId": "org_sample",
+	"integrationId": "ci_sample",
+	"data": {
+		"meetingId": "m_example",
+		"scheduledAt": "2026-12-01T20:00:00.000Z",
+		"status": "scheduled",
+		"title": "Product demo",
+		"duration": 30,
+		"externalId": "noshow-mtg_123",
+		"agent": {
+			"id": "8b3e4f50-0000-4000-8000-000000000003",
+			"name": "Sofia"
+		},
+		"call": {
+			"toNumber": "+14155550123",
+			"contact": {
+				"phoneNumber": "+14155550123",
+				"fullName": "Ada Lovelace"
+			}
+		}
+	}
+}

@@ -1,0 +1,289 @@
+{
+  "name": "Follow up on missed meetings with an AI voice call and HubSpot",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Missed meeting follow-up\nWhen a prospect does not show up, an AI voice agent phones them within minutes, apologises, and offers a new time. If a new meeting is booked, HubSpot is updated.\n\n**What starts it:** a webhook. Ringee has no “no-show” event, so send one from your scheduling tool (Calendly, Cal.com, Zoom, your CRM) with this JSON:\n`{ \"name\": \"Ada Lovelace\", \"phone\": \"+14155550123\", \"email\": \"ada@example.com\", \"meeting\": \"Product demo\", \"meetingId\": \"mtg_123\" }`\n\n*Depends on a no-show signal from another tool.* [Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 320,
+        "width": 500,
+        "color": 4
+      },
+      "id": "bc5bb8be-0415-5908-a06d-adc1598c4114",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Meeting Created*.\n\nUse an **Appointment Booking** agent: it can offer slots from your Ringee calendar and book the new meeting itself. Connect **HubSpot** on the last node.\n\n**Protect the webhook.** The *Meeting was missed* node starts a paid call for whatever number it receives, so it requires authentication and will not activate until you choose a credential. In n8n create a **Header Auth** credential (any header name, for example `X-Webhook-Secret`, and a long random value), select it on that node, and make your scheduling tool send the same header. Never share the URL without it.",
+        "height": 480,
+        "width": 500,
+        "color": 5
+      },
+      "id": "cd7906c0-3055-598e-a803-bdd359498f70",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "e0f47a00-68ab-5efa-a90b-c1d01b90e3a0",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        270,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ringee-missed-meeting",
+        "responseMode": "onReceived",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "292643aa-2393-5858-a003-c912f6541a41",
+      "name": "Meeting was missed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        270,
+        -100
+      ],
+      "webhookId": "ec2cc406-7e66-521a-b41c-2da5cdb3eea5"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "minutes"
+      },
+      "id": "3b5df867-1836-5d54-98b0-416320bacf9d",
+      "name": "Wait 10 minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        510,
+        -100
+      ],
+      "webhookId": "0eb6b1c8-da51-53c9-ae4f-7f81aa9098bf"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $json.body.phone }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "={{ String($json.body.name || '').split(' ')[0] }}",
+            "last_name": "={{ String($json.body.name || '').split(' ').slice(1).join(' ') }}",
+            "email": "={{ $json.body.email || \"\" }}",
+            "reason": "={{ \"You missed \" + $json.body.meeting + \". Offer to book a new time.\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'noshow-' + $json.body.meetingId }}",
+          "idempotencyKey": "={{ 'noshow-' + $json.body.meetingId }}"
+        }
+      },
+      "id": "cff63be6-2db3-5956-ac86-3825f118f9c6",
+      "name": "Offer a new time by phone",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        750,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "meeting.created"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true
+        }
+      },
+      "id": "6ec40a9f-8fe1-5e90-ba17-2adb44ed3cda",
+      "name": "New meeting booked",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        270,
+        240
+      ],
+      "webhookId": "cc7271f8-0e7a-5ff1-b906-7f6444cb6fed"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "contact",
+        "operation": "search",
+        "returnAll": false,
+        "limit": 1,
+        "filterGroupsUi": {
+          "filterGroupsValues": [
+            {
+              "filtersUi": {
+                "filterValues": [
+                  {
+                    "propertyName": "phone|string",
+                    "operator": "EQ",
+                    "value": "={{ $json.data.call?.contact?.phoneNumber || $json.data.toNumber }}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "19a7c9b2-b422-54e1-95df-730b0e019c0a",
+      "name": "Find the contact in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        510,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "engagement",
+        "operation": "create",
+        "type": "meeting",
+        "metadata": {
+          "body": "={{ 'Rescheduled by Ringee AI voice agent: ' + ($('New meeting booked').item.json.data.title || 'meeting') }}",
+          "startTime": "={{ $('New meeting booked').item.json.data.scheduledAt }}"
+        },
+        "additionalFields": {
+          "associations": {
+            "contactIds": "={{ $json.id }}"
+          }
+        }
+      },
+      "id": "f30f52dc-9d68-5796-bad5-5cc3d0b499e2",
+      "name": "Log the new meeting in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        750,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Meeting was missed": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Offer a new time by phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New meeting booked": {
+      "main": [
+        [
+          {
+            "node": "Find the contact in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find the contact in HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Log the new meeting in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "New meeting booked": [
+      {
+        "json": {
+          "event": "meeting.created",
+          "eventId": "evt_sample_0002",
+          "occurredAt": "2026-11-24T15:03:00.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "meetingId": "m_sample",
+            "scheduledAt": "2026-11-27T16:00:00.000Z",
+            "status": "scheduled",
+            "title": "Product demo (rescheduled)",
+            "duration": 30,
+            "externalId": "noshow-mtg_123",
+            "toNumber": "+14155550123",
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "toNumber": "+14155550123",
+              "contact": {
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a2f36194-e264-54ba-9d22-f5e831299085",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

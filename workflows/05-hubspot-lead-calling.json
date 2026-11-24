@@ -1,0 +1,592 @@
+{
+  "name": "Call every new HubSpot contact with a Ringee AI voice agent and log the call",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## HubSpot lead calling\nWhen a contact is created in HubSpot, an AI voice agent phones them. When the call ends, the call is logged on the HubSpot contact with the AI's summary.\n\nContacts need a **phone number** property. Only create contacts who agreed to be called.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 230,
+        "width": 470,
+        "color": 4
+      },
+      "id": "f795d8f5-6222-55c5-a21c-a7845c4fb399",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Completed* and *Call Failed*.\n\nConnect **HubSpot** on the trigger and on the two HubSpot nodes. The HubSpot Trigger needs a HubSpot developer app; see n8n's HubSpot Trigger guide.",
+        "height": 330,
+        "width": 470,
+        "color": 5
+      },
+      "id": "65078102-78fc-5728-a528-4003bfb9102d",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -90
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "479b5afe-69a9-5f92-84df-972259c8b724",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "eventsUi": {
+          "eventValues": [
+            {
+              "name": "contact.creation"
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "bdf1243f-5546-5b5d-a3c2-f2fa98ce698d",
+      "name": "New HubSpot contact",
+      "type": "n8n-nodes-base.hubspotTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -100
+      ],
+      "webhookId": "a50f40b0-b84d-5329-8f14-8826a92131a7"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "contact",
+        "operation": "get",
+        "contactId": {
+          "__rl": true,
+          "value": "={{ $json.objectId }}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "propertiesCollection": {
+            "propertiesValues": {
+              "properties": [
+                "firstname",
+                "lastname",
+                "phone",
+                "mobilephone",
+                "email"
+              ],
+              "propertyMode": "valueOnly"
+            }
+          }
+        }
+      },
+      "id": "b4247147-1713-5368-a1f3-1a741e1f533a",
+      "name": "Get contact details",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        500,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8323019-fba2-5bcf-b36a-8df089200732",
+              "name": "phone",
+              "value": "={{ (() => { const p = $json.properties || {}; const v = x => (x && typeof x === 'object' && 'value' in x) ? x.value : x; return String(v(p.phone) || v(p.mobilephone) || '').trim(); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "bf35c9a7-aee2-5481-a5c1-6a45eeefb28f",
+              "name": "firstName",
+              "value": "={{ (() => { const p = $json.properties || {}; const v = x => (x && typeof x === 'object' && 'value' in x) ? x.value : x; return v(p.firstname) || 'there'; })() }}",
+              "type": "string"
+            },
+            {
+              "id": "1eb01138-9d2a-53e3-98c4-e29e8a913439",
+              "name": "lastName",
+              "value": "={{ (() => { const p = $json.properties || {}; const v = x => (x && typeof x === 'object' && 'value' in x) ? x.value : x; return v(p.lastname) || ''; })() }}",
+              "type": "string"
+            },
+            {
+              "id": "7aa7fa87-776d-5a00-aa7f-9615ebac6dde",
+              "name": "contactId",
+              "value": "={{ $json.vid || $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ef02965-ba38-5c28-b368-1420933819c3",
+      "name": "Prepare lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        740,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "573dbe31-ea9d-5120-b4df-6600aa71ed5d",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "163a7431-ffea-506c-8c74-0f1f7cac5af2",
+      "name": "Has a phone number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        980,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $json.phone }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "={{ $json.firstName }}",
+            "last_name": "={{ $json.lastName }}",
+            "reason": "You were added to our contacts and we wanted to introduce ourselves"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'hs-' + $json.contactId }}",
+          "idempotencyKey": "={{ 'hs-' + $json.contactId }}"
+        }
+      },
+      "id": "43e936bd-3deb-57e5-bdcf-15ebf859138f",
+      "name": "Start the call",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        -180
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "e682c51d-73d0-51ce-8da2-a41c97cd46be",
+      "name": "No phone number: skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.completed",
+          "call.failed"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true,
+          "externalIdPrefix": "hs-"
+        }
+      },
+      "id": "a7941df1-fd37-51c8-883b-61f47ed542c0",
+      "name": "Call ended",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        240
+      ],
+      "webhookId": "b6a0ba00-6412-5244-8c85-ee9735132b00"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "b7c1315f-fa27-51ee-b91e-62f84b242ad9",
+      "name": "Wait for the AI analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        240
+      ],
+      "webhookId": "ebb9b9c0-f3fa-5c6b-a4fc-3189422d166f"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Call ended').item.json.data.call?.voiceAgentCall?.id || $('Call ended').item.json.data.agentCallId }}"
+      },
+      "id": "22343c9a-4182-5651-850d-06975e9bb61e",
+      "name": "Get call result",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        740,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "engagement",
+        "operation": "create",
+        "type": "call",
+        "metadata": {
+          "body": "={{ 'AI voice agent call. Outcome: ' + ($json.outcome || ($json.status === 'completed' ? 'analysis pending' : $json.status)) + '. ' + ($json.summary || '') }}",
+          "durationMilliseconds": "={{ ($('Call ended').item.json.data.durationSeconds || 0) * 1000 }}",
+          "fromNumber": "={{ $('Call ended').item.json.data.fromNumber }}",
+          "toNumber": "={{ $('Call ended').item.json.data.toNumber }}",
+          "status": "={{ ({ completed: 'COMPLETED', busy: 'BUSY', failed: 'FAILED', voicemail: 'NO_ANSWER', no_answer: 'NO_ANSWER' })[$json.status] || 'NO_ANSWER' }}"
+        },
+        "additionalFields": {
+          "associations": {
+            "contactIds": "={{ $('Call ended').item.json.data.externalId.replace('hs-', '') }}"
+          }
+        }
+      },
+      "id": "3a58d55a-5c61-536f-a13b-a4dc3a707d56",
+      "name": "Log the call in HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.3,
+      "position": [
+        980,
+        240
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "de74d81c-f8fd-517f-ae71-7966d408b832",
+      "name": "Call not placed: see the error",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "430b0d5b-6733-5958-9cf9-3e923dad1d0c",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "857f3f5b-eb40-5f2d-a2ca-7b2cb617c911",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "e8068268-6ef3-5ba1-936a-a3423ca3f49e",
+      "name": "Analysis ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        980,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "21d22578-9f64-5290-8439-c9682ea49491",
+      "name": "Wait 5 more minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        460
+      ],
+      "webhookId": "4978e037-8fb0-51df-98d8-8e9a423681b1"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Call ended').item.json.data.call?.voiceAgentCall?.id || $('Call ended').item.json.data.agentCallId }}"
+      },
+      "id": "fe6b17a7-900b-53db-9a27-f3175ea88ec6",
+      "name": "Get call result (second try)",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "New HubSpot contact": {
+      "main": [
+        [
+          {
+            "node": "Get contact details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get contact details": {
+      "main": [
+        [
+          {
+            "node": "Prepare lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare lead": {
+      "main": [
+        [
+          {
+            "node": "Has a phone number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a phone number?": {
+      "main": [
+        [
+          {
+            "node": "Start the call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No phone number: skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call ended": {
+      "main": [
+        [
+          {
+            "node": "Wait for the AI analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the AI analysis": {
+      "main": [
+        [
+          {
+            "node": "Get call result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result": {
+      "main": [
+        [
+          {
+            "node": "Analysis ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start the call": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Call not placed: see the error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis ready?": {
+      "main": [
+        [
+          {
+            "node": "Log the call in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 5 more minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 more minutes": {
+      "main": [
+        [
+          {
+            "node": "Get call result (second try)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result (second try)": {
+      "main": [
+        [
+          {
+            "node": "Log the call in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Call ended": [
+      {
+        "json": {
+          "event": "call.completed",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "externalId": "hs-501",
+            "fromNumber": "+14155550100",
+            "toNumber": "+14155550123",
+            "status": "completed",
+            "direction": "outbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d95a2370-5d71-55f2-89f1-b1e0d39fab41",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

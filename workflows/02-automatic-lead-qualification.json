@@ -1,0 +1,624 @@
+{
+  "name": "Qualify new leads with an AI phone call from Google Sheets using Ringee",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Automatic lead qualification\nEvery new row in your leads sheet gets a phone call from an AI voice agent that asks your qualifying questions. When the call ends, the row is updated with the outcome, a summary and what the person said.\n\n**Sheet columns:** `Name`, `Phone`, `Company`, `Status`, `Outcome`, `Summary`, `Sentiment`. Leave `Status` empty on new rows.\n\n[Ringee](https://ringee.io) · [Docs](https://docs.ringee.io)",
+        "height": 300,
+        "width": 470,
+        "color": 4
+      },
+      "id": "8d19391e-e965-5c45-9727-c72bd6cbc385",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Before you run this**\n1. In Ringee, create a **Custom Integration** (Integrations → Custom Integrations) and copy its **API key** and **Signing Secret**.\n2. In n8n, create a **Ringee API** credential with both.\n3. Pick your AI voice agent in the Ringee node.\n4. Activate the workflow, then paste the **Ringee Trigger's Production URL** into the integration's **Outbound URL** and tick *Call Completed* and *Call Failed*.\n\nUse an agent of type **Appointment Booking** configured with your qualifying questions. Connect **Google Sheets** on the three Google nodes and choose the same spreadsheet and sheet on each.",
+        "height": 330,
+        "width": 470,
+        "color": 5
+      },
+      "id": "8ea19ea7-4482-5577-8062-205665f41cb7",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "**Consent and calling hours**\nOnly call people who agreed to be called, and only at reasonable hours. Ringee blocks numbers on your Do-Not-Call list and respects your plan's limits, but you are responsible for the permission to call. Every phone number in this template is fictional.",
+        "height": 190,
+        "width": 360,
+        "color": 3
+      },
+      "id": "604fedf7-9647-52ce-912d-0eaa123b438b",
+      "name": "Consent",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "event": "rowAdded",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "dbcaf410-5e00-5e59-a6a6-2ec610e62027",
+      "name": "New lead row",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d8323019-fba2-5bcf-b36a-8df089200732",
+              "name": "phone",
+              "value": "={{ String($json.Phone || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "bf35c9a7-aee2-5481-a5c1-6a45eeefb28f",
+              "name": "firstName",
+              "value": "={{ String($json.Name || 'there').trim().split(' ')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "423c7b0a-b8c3-5628-8c97-8aa71cdeb66e",
+              "name": "company",
+              "value": "={{ $json.Company || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "874aa3c4-f11f-59b3-8bf9-88416825f971",
+              "name": "rowNumber",
+              "value": "={{ $json.row_number }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7f6baa1b-4d85-5921-96a9-4db83d1b9c9c",
+      "name": "Prepare lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        500,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "573dbe31-ea9d-5120-b4df-6600aa71ed5d",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "29391b25-eb4f-5df4-bdc8-c1d29913fc37",
+              "leftValue": "={{ $('New lead row').item.json.Status || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1f550330-e291-57d4-8f98-685c95a12b9d",
+      "name": "Phone filled in and not yet contacted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        740,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "startCall",
+        "agentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "phoneNumber": "={{ $json.phone }}",
+        "variables": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "first_name": "={{ $json.firstName }}",
+            "reason": "={{ \"Follow-up about \" + ($json.company || \"your enquiry\") }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "externalId": "={{ 'lead-' + $json.rowNumber }}",
+          "idempotencyKey": "={{ 'lead-' + $json.rowNumber + '-' + String($json.phone).replace(/[^\\d+]/g, '') }}"
+        }
+      },
+      "id": "c685a0b8-aed7-5f27-a5c8-b3041253d764",
+      "name": "Start qualification call",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        980,
+        -160
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.rowNumber }}",
+            "Status": "Calling"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "dd48a06c-53ee-5037-9093-6c314a26b013",
+      "name": "Mark row as called",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1220,
+        -160
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0935bd74-8310-51f3-a795-78c9f26f679c",
+      "name": "Skipped",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "events": [
+          "call.completed",
+          "call.failed"
+        ],
+        "options": {
+          "onlyAiAgentCalls": true,
+          "externalIdPrefix": "lead-"
+        }
+      },
+      "id": "6b8f5146-1cc1-56c2-b894-1323c1896b5f",
+      "name": "Qualification call ended",
+      "type": "n8n-nodes-ringee.ringeeTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        260
+      ],
+      "webhookId": "c1c5af44-353d-5e02-b000-c7cfd68acf5c"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "51378302-ac8e-5c80-9ac1-23309c8b856d",
+      "name": "Wait for the AI analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        260
+      ],
+      "webhookId": "9f5bb13e-9512-5123-a85d-26d59ab98281"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Qualification call ended').item.json.data.call?.voiceAgentCall?.id || $('Qualification call ended').item.json.data.agentCallId }}"
+      },
+      "id": "9c8e6bbe-a19a-55e7-ba2f-784fa05d3ae4",
+      "name": "Get call result",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        740,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ Number($('Qualification call ended').item.json.data.externalId.replace('lead-', '')) }}",
+            "Status": "={{ $json.outcome ? ($json.outcome === 'no_answer' ? 'No answer' : 'Call done') : ($json.status === 'failed' ? 'Call failed' : 'Analysis pending') }}",
+            "Outcome": "={{ $json.outcome || $json.status }}",
+            "Summary": "={{ $json.summary || '' }}",
+            "Sentiment": "={{ $json.sentiment || '' }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "36fb4f84-8aa4-5cad-b8b7-59c6a2ee4c5d",
+      "name": "Write result to the sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a39ab099-4056-58da-93bf-8dad6de6c9b9",
+      "name": "Call not placed: see the error",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ce46db99-5372-5a15-b558-9e4fc7773956",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "3c818c5e-3c9a-55a6-ba22-a4cbc80d756d",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "90f55b04-cb78-5cf0-8947-2ad010c3c661",
+      "name": "Analysis ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      },
+      "id": "ade0fc69-c9f3-5499-a2ae-8195fa727bf8",
+      "name": "Wait 5 more minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        480
+      ],
+      "webhookId": "28884270-be59-5d43-91f7-902ee52bb067"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallResult",
+        "callId": "={{ $('Qualification call ended').item.json.data.call?.voiceAgentCall?.id || $('Qualification call ended').item.json.data.agentCallId }}"
+      },
+      "id": "738f6f37-6215-5dd7-a040-f968c04b40cb",
+      "name": "Get call result (second try)",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        480
+      ]
+    }
+  ],
+  "connections": {
+    "New lead row": {
+      "main": [
+        [
+          {
+            "node": "Prepare lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare lead": {
+      "main": [
+        [
+          {
+            "node": "Phone filled in and not yet contacted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phone filled in and not yet contacted?": {
+      "main": [
+        [
+          {
+            "node": "Start qualification call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start qualification call": {
+      "main": [
+        [
+          {
+            "node": "Mark row as called",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call not placed: see the error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualification call ended": {
+      "main": [
+        [
+          {
+            "node": "Wait for the AI analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the AI analysis": {
+      "main": [
+        [
+          {
+            "node": "Get call result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result": {
+      "main": [
+        [
+          {
+            "node": "Analysis ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis ready?": {
+      "main": [
+        [
+          {
+            "node": "Write result to the sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 5 more minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 more minutes": {
+      "main": [
+        [
+          {
+            "node": "Get call result (second try)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get call result (second try)": {
+      "main": [
+        [
+          {
+            "node": "Write result to the sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Qualification call ended": [
+      {
+        "json": {
+          "event": "call.completed",
+          "eventId": "evt_sample_0001",
+          "occurredAt": "2026-11-24T15:01:12.000Z",
+          "workspaceId": "org_sample",
+          "integrationId": "ci_sample",
+          "data": {
+            "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+            "externalId": "lead-2",
+            "fromNumber": "+14155550100",
+            "toNumber": "+14155550123",
+            "status": "completed",
+            "direction": "outbound",
+            "durationSeconds": 72,
+            "agent": {
+              "id": "8b3e4f50-0000-4000-8000-000000000003",
+              "name": "Sofia"
+            },
+            "call": {
+              "callId": "6f1c2d3e-0000-4000-8000-000000000001",
+              "fromNumber": "+14155550100",
+              "toNumber": "+14155550123",
+              "status": "completed",
+              "direction": "outbound",
+              "source": "ai_voice_agent",
+              "startedAt": "2026-11-24T15:00:00.000Z",
+              "endedAt": "2026-11-24T15:01:12.000Z",
+              "durationSeconds": 72,
+              "contact": {
+                "id": "c-sample",
+                "phoneNumber": "+14155550123",
+                "fullName": "Ada Lovelace"
+              },
+              "voiceAgentCall": {
+                "id": "7a2d3e4f-0000-4000-8000-000000000002",
+                "agent": {
+                  "id": "8b3e4f50-0000-4000-8000-000000000003",
+                  "name": "Sofia"
+                },
+                "status": "completed"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f73497ab-915f-5a3a-8d51-c502110449df",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "ringee-n8n-template"
+  },
+  "tags": []
+}

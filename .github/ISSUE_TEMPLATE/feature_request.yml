@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest an operation, event or template
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The node can only offer what Ringee's public API has. Check `docs/api-capability-matrix.md`: if the route or event does not exist yet, the request belongs in Ringee first, and we will link it here.
+  - type: textarea
+    id: use
+    attributes:
+      label: What are you trying to automate?
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Which Ringee route or event would it use, if you know?
