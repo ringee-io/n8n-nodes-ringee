@@ -164,7 +164,11 @@ async function send(
 		if (response && response.statusCode >= 200 && response.statusCode < 300) return response;
 
 		const status = response?.statusCode;
-		if (attempt < MAX_RETRIES && shouldRetry(request.method, status)) {
+		if (
+			attempt < MAX_RETRIES &&
+			shouldRetry(request.method, status) &&
+			!isCapacityRefusal(status, response?.body)
+		) {
 			await sleep(retryDelayMs(response, attempt));
 			continue;
 		}
@@ -197,6 +201,18 @@ export function shouldRetry(method: string, status: number | undefined): boolean
 	if (status === undefined) return SAFE_TO_REPEAT.has(method);
 	if (NOT_PROCESSED.has(status)) return true;
 	return TRANSIENT.has(status) && SAFE_TO_REPEAT.has(method);
+}
+
+/**
+ * A `429` that says Ringee's CALL CAPACITY is spent, not that the API was asked
+ * too often. The first clears in seconds; this one clears when calls finish, so
+ * retrying it a second later only holds the workflow up. It is raised at once,
+ * and the workflow decides how long to wait.
+ */
+export function isCapacityRefusal(status: number | undefined, body: unknown): boolean {
+	if (status !== 429 || !body || typeof body !== 'object') return false;
+	const code = (body as { code?: unknown }).code;
+	return code === 'dispatch_queue_full' || code === 'dispatch_deferred';
 }
 
 function retryDelayMs(response: RawResponse | undefined, attempt: number): number {

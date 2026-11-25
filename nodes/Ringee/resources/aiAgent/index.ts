@@ -28,6 +28,13 @@ const description: INodeProperties[] = [
 		default: 'startCall',
 		options: [
 			{
+				name: 'Cancel Call',
+				value: 'cancelCall',
+				description:
+					'Withdraw a call that is still waiting for call capacity. A call that is already dialing cannot be cancelled this way.',
+				action: 'Cancel a call that has not been dialed',
+			},
+			{
 				name: 'Get',
 				value: 'get',
 				description: 'Retrieve an AI voice agent and the variables its calls accept',
@@ -61,7 +68,7 @@ const description: INodeProperties[] = [
 				name: 'Start Call',
 				value: 'startCall',
 				description:
-					'Start a phone call with an AI voice agent. Returns at once; the result arrives later.',
+					'Start a phone call with an AI voice agent. Returns a durable call ID with queued or initiating status; the result arrives later.',
 				action: 'Start a call with an AI voice agent',
 			},
 		],
@@ -189,7 +196,7 @@ const description: INodeProperties[] = [
 	},
 
 	// ── Call status / result ──────────────────────────────────────────────
-	callIdField(forOperation(RESOURCE, ['getCallStatus', 'getCallResult'])),
+	callIdField(forOperation(RESOURCE, ['getCallStatus', 'getCallResult', 'cancelCall'])),
 ];
 
 const getMany: OperationHandler = async (ctx, itemIndex) => {
@@ -277,6 +284,14 @@ const startCall: OperationHandler = async (ctx, itemIndex) => {
 		phone.value,
 	);
 
+	if (!idempotencyKey) {
+		throw new NodeOperationError(ctx.getNode(), 'Enter a stable Idempotency Key for this call.', {
+			itemIndex,
+			description:
+				'This execution has no stable identity. Use a persistent record-based key so retries cannot place another paid call.',
+		});
+	}
+
 	const started = await ringeeRequest<RingeeStartCallResponse>(ctx, {
 		method: 'POST',
 		path: `/v1/ai-voice-agents/${encodeURIComponent(agentId)}/calls`,
@@ -297,9 +312,43 @@ const startCall: OperationHandler = async (ctx, itemIndex) => {
 			call_id: started.id,
 			status: started.status,
 			finished: isFinished(started.status),
+			// A call Ringee accepted but has not dialed: it is waiting for call
+			// capacity. Nothing has been dialed or charged yet, and `expires_at` is
+			// when it gives up. Branch on this, not on the status text.
+			queued: started.status === 'queued',
 			...(started.idempotent_replayed !== undefined
 				? { idempotent_replayed: started.idempotent_replayed }
 				: {}),
+			...(started.queued_at ? { queued_at: started.queued_at } : {}),
+			...(started.expires_at ? { expires_at: started.expires_at } : {}),
+		},
+		itemIndex,
+	);
+};
+
+const cancelCall: OperationHandler = async (ctx, itemIndex) => {
+	const callId = textValue(ctx, 'callId', itemIndex);
+	if (!callId) {
+		throw new NodeOperationError(ctx.getNode(), 'Enter the ID of the call.', {
+			itemIndex,
+			description: "Fix the 'Call ID' field. Start Call returns it as call_id.",
+		});
+	}
+	// A server that predates the queue has nothing to cancel: say so before
+	// sending, instead of answering the 404 of a route it does not have.
+	await requireCapability(ctx, 'queuedCalls', itemIndex);
+	const cancelled = await ringeeRequest<{ id: string; status: AgentCallStatus }>(ctx, {
+		method: 'POST',
+		path: `/v1/ai-voice-agents/calls/${encodeURIComponent(callId)}/cancel`,
+		itemIndex,
+		subject: 'call',
+	});
+	return toItems(
+		{
+			call_id: cancelled.id,
+			status: cancelled.status,
+			finished: isFinished(cancelled.status),
+			queued: false,
 		},
 		itemIndex,
 	);
@@ -317,6 +366,9 @@ const getCallStatus: OperationHandler = async (ctx, itemIndex) => {
 			call_id: result.call_id,
 			status: result.status,
 			finished: isFinished(result.status),
+			queued: result.status === 'queued',
+			...(result.queued_at ? { queued_at: result.queued_at } : {}),
+			...(result.expires_at ? { expires_at: result.expires_at } : {}),
 			outcome: result.outcome,
 		},
 		itemIndex,
@@ -349,8 +401,8 @@ function isFinished(status: AgentCallStatus | string): boolean {
 /** True once the call has reached a final status, so a workflow can branch on it. */
 function withFinished(
 	result: RingeeAgentCallResult,
-): RingeeAgentCallResult & { finished: boolean } {
-	return { ...result, finished: isFinished(result.status) };
+): RingeeAgentCallResult & { finished: boolean; queued: boolean } {
+	return { ...result, finished: isFinished(result.status), queued: result.status === 'queued' };
 }
 
 function parseMetadata(
@@ -456,5 +508,13 @@ function readVariables(
 
 export const aiAgent: ResourceModule = {
 	description,
-	operations: { get, getMany, getManyCalls, getCallResult, getCallStatus, startCall },
+	operations: {
+		cancelCall,
+		get,
+		getMany,
+		getManyCalls,
+		getCallResult,
+		getCallStatus,
+		startCall,
+	},
 };

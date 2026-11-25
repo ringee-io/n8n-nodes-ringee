@@ -16,7 +16,7 @@ Places one AI voice call from a button click, waits two minutes and reads the re
 - **Business use case:** Prove the integration end to end before building anything: credentials, agent, call, result.
 - **Who it is for:** Anyone installing the Ringee node for the first time.
 - **Needs:** Ringee
-- **Ringee features:** AI Voice Agent: Start Call; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API
 - **Publication:** Not published (draft)
 
@@ -31,14 +31,15 @@ Places one AI voice call from a button click, waits two minutes and reads the re
 1. Open the two Ringee nodes and select your Ringee API credential.
 2. In Start AI call, pick your agent and replace the sample number with your own.
 3. Click Execute workflow and answer the call.
+4. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Sample number +14155550123 (fictional). Variables: first_name = Alex, notification = a quick test.
 
-**Error handling:** A refused call (no credits, Do-Not-Call number, invalid number) stops the run with an explanation; nothing is dialed.
+**Error handling:** A refused call (no credits, Do-Not-Call number, invalid number) stops the run with an explanation; nothing is dialed. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result. A failed result read goes to its own output and never stops that status check.
 
 **Expected result:** Your phone rings. Two minutes later the last node shows status, outcome and the AI summary.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -52,7 +53,7 @@ An AI voice agent phones each person about an hour before a meeting to confirm t
 - **Business use case:** Cut no-shows for demos, consultations, viewings and appointments by confirming by phone, without anyone on your team making the calls.
 - **Who it is for:** Sales teams, clinics, agencies and service businesses that book meetings in Google Calendar.
 - **Needs:** Ringee, Google Calendar
-- **Ringee features:** AI Voice Agent: Start Call (with an Idempotency Key per meeting); Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call (with an Idempotency Key per meeting); Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, Google Calendar OAuth2
 - **Publication:** Not published (draft)
 
@@ -70,14 +71,15 @@ An AI voice agent phones each person about an hour before a meeting to confirm t
 2. Select your calendar on the three Google Calendar nodes and connect Google Calendar.
 3. Activate the workflow, then paste the Ringee Trigger Production URL into your Custom Integration as the Outbound URL and tick Call Completed and Call Failed.
 4. Add Phone: and Name: lines to your event descriptions.
+5. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** The Ringee Trigger carries a pinned sample call.completed event (external ID reminder-sampleEventId123) so you can test the second half without waiting for a call.
 
-**Error handling:** Events without a phone number are skipped. The same meeting never gets two calls (Idempotency Key = calendar event ID). If the AI analysis is not ready after seven minutes the workflow stops quietly and the call stays visible in Ringee. A number Ringee rejects (for example on the Do-Not-Call list) goes to its own output and the rest of the batch is still called.
+**Error handling:** Events without a phone number are skipped. The same meeting never gets two calls (Idempotency Key = calendar event ID). If the AI analysis is not ready after seven minutes the workflow stops quietly and the call stays visible in Ringee. A number Ringee rejects (for example on the Do-Not-Call list) goes to its own output and the rest of the batch is still called. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result.
 
 **Expected result:** About an hour before each meeting the guest receives a call; shortly after it ends the event changes colour in Google Calendar.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -91,7 +93,7 @@ Every new row in a leads sheet gets a call from an AI voice agent that asks your
 - **Business use case:** Speed to lead without an SDR: every inbound lead is contacted within minutes and the sheet always shows who was reached and what they said.
 - **Who it is for:** Agencies and small sales teams that collect leads in Google Sheets.
 - **Needs:** Ringee, Google Sheets
-- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, Google Sheets OAuth2
 - **Publication:** Not published (draft)
 
@@ -108,14 +110,15 @@ Every new row in a leads sheet gets a call from an AI voice agent that asks your
 1. Select your Ringee credential and agent.
 2. Choose the same spreadsheet and sheet on the three Google Sheets nodes.
 3. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL.
+4. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Pinned sample call.completed event with external ID lead-2 (row 2 of the sheet).
 
-**Error handling:** Rows without a phone number, or that already have a Status, are skipped. A row is marked “Calling” right after the call starts so it is not called twice. The Idempotency Key is the row number plus the phone number, so a reused row is not mistaken for an earlier lead. A number Ringee rejects goes to its own output and the other rows are still called. If the AI analysis is not ready after seven minutes the row says "Analysis pending" instead of claiming a result.
+**Error handling:** Rows without a phone number, or that already have a Status, are skipped. A row is marked “Calling” right after the call starts so it is not called twice. The Idempotency Key is the row number plus the phone number, so a reused row is not mistaken for an earlier lead. A number Ringee rejects goes to its own output and the other rows are still called. If the AI analysis is not ready after seven minutes the row says "Analysis pending" instead of claiming a result. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result. A failed row update goes to its own output and never stops that status check.
 
 **Expected result:** New rows are called; when the call ends, Outcome, Summary and Sentiment are filled in.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -131,7 +134,7 @@ When a prospect misses a meeting, an AI voice agent phones them ten minutes late
 - **Business use case:** Recover no-shows while the conversation is still warm, without chasing them by hand.
 - **Who it is for:** Sales teams that book demos through a scheduling tool and keep records in HubSpot.
 - **Needs:** Ringee, HubSpot, A scheduling tool that can send a webhook on a no-show
-- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Meeting Created
+- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Meeting Created; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, HubSpot OAuth2, Header Auth (protects the webhook)
 - **Publication:** Not published (draft)
 
@@ -149,14 +152,15 @@ When a prospect misses a meeting, an AI voice agent phones them ten minutes late
 2. Point your scheduling tool’s no-show webhook at this workflow’s Meeting was missed URL, sending name, phone, email, meeting and meetingId.
 3. Select your Ringee credential and agent, and connect HubSpot.
 4. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL and tick Meeting Created.
+5. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Webhook body {"name":"Ada Lovelace","phone":"+14155550123","email":"ada@example.com","meeting":"Product demo","meetingId":"mtg_123"}; pinned sample meeting.created event.
 
-**Error handling:** Each missed meeting is called once (Idempotency Key = meeting ID). If HubSpot has no contact with that phone number nothing is logged. Only a caller that sends the secret header can start a call; anything else is refused before any number is read.
+**Error handling:** Each missed meeting is called once (Idempotency Key = meeting ID). If HubSpot has no contact with that phone number nothing is logged. Only a caller that sends the secret header can start a call; anything else is refused before any number is read. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result.
 
 **Expected result:** The prospect is called about ten minutes after the no-show; a rebooked meeting appears as a meeting on the HubSpot contact.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -170,7 +174,7 @@ A new Facebook lead is phoned by an AI voice agent straight away and, when the f
 - **Business use case:** Contact paid-ad leads while they still remember the ad, when conversion is highest.
 - **Who it is for:** Marketing teams and agencies running Facebook and Instagram lead ads.
 - **Needs:** Ringee, Facebook Lead Ads, HubSpot
-- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, Facebook Lead Ads OAuth2, HubSpot OAuth2
 - **Publication:** Not published (draft)
 
@@ -186,14 +190,15 @@ A new Facebook lead is phoned by an AI voice agent straight away and, when the f
 1. Choose your Facebook page and form on the trigger.
 2. Select the Ringee credential and agent; connect HubSpot.
 3. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL.
+4. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Pinned sample call.completed event with external ID fb-sample-lead-1.
 
-**Error handling:** Leads without a phone number are skipped. Each lead is called once (Idempotency Key = lead ID). A lead without an email is called but not saved to HubSpot, so no placeholder contact is ever written.
+**Error handling:** Leads without a phone number are skipped. Each lead is called once (Idempotency Key = lead ID). A lead without an email is called but not saved to HubSpot, so no placeholder contact is ever written. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result.
 
 **Expected result:** A new lead gets a call within about a minute; when it ends the contact is created or updated in HubSpot. The call and its summary stay in Ringee.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -207,7 +212,7 @@ A contact created in HubSpot is called by an AI voice agent and the call is logg
 - **Business use case:** Warm every new contact immediately and keep the CRM timeline complete without manual logging.
 - **Who it is for:** Teams whose lead intake lands in HubSpot (forms, imports, integrations).
 - **Needs:** Ringee, HubSpot
-- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, HubSpot OAuth2, HubSpot Developer API (for the trigger)
 - **Publication:** Not published (draft)
 
@@ -223,14 +228,15 @@ A contact created in HubSpot is called by an AI voice agent and the call is logg
 1. Connect HubSpot on the trigger and the HubSpot nodes.
 2. Select the Ringee credential and agent.
 3. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL.
+4. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Pinned sample call.completed event with external ID hs-501 (HubSpot contact 501).
 
-**Error handling:** Contacts without a phone are skipped; each contact is called once (Idempotency Key = contact ID). A number Ringee rejects goes to its own output and the rest of the batch is still called. If the AI analysis is not ready after seven minutes the call is logged as "analysis pending", with its real status (completed, busy, failed or no answer).
+**Error handling:** Contacts without a phone are skipped; each contact is called once (Idempotency Key = contact ID). A number Ringee rejects goes to its own output and the rest of the batch is still called. If the AI analysis is not ready after seven minutes the call is logged as "analysis pending", with its real status (completed, busy, failed or no answer). Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result.
 
 **Expected result:** The contact receives a call; a call activity with the outcome and summary appears on their HubSpot timeline.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -244,7 +250,7 @@ When an inbound call goes unanswered, an AI voice agent calls the person back fi
 - **Business use case:** Never lose a caller because nobody picked up; every missed call gets a prompt, polite callback.
 - **Who it is for:** Small businesses, clinics and agencies with unstaffed hours.
 - **Needs:** Ringee, Google Sheets
-- **Ringee features:** Ringee Trigger: Call Missed; AI Voice Agent: Start Call
+- **Ringee features:** Ringee Trigger: Call Missed; AI Voice Agent: Start Call; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, Google Sheets OAuth2
 - **Publication:** Not published (draft)
 
@@ -260,14 +266,15 @@ When an inbound call goes unanswered, an AI voice agent calls the person back fi
 1. Select the Ringee credential and agent.
 2. Choose your spreadsheet and sheet on the Google Sheets node.
 3. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL and tick Call Missed.
+4. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Pinned sample call.missed event from +14155550123.
 
-**Error handling:** A caller is called back at most once every four hours (Idempotency Key = the caller’s number and the four-hour window), so repeated calls are not answered with repeated calls and two Ringee numbers running this workflow cannot call each other forever.
+**Error handling:** A caller is called back at most once every four hours (Idempotency Key = the caller’s number and the four-hour window), so repeated calls are not answered with repeated calls and two Ringee numbers running this workflow cannot call each other forever. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result. A failed log write goes to its own output and never stops that status check.
 
 **Expected result:** Five minutes after a missed call the caller receives a call from your AI agent and a row is added to the log.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 
@@ -318,7 +325,7 @@ A GoHighLevel workflow sends each new lead to n8n; an AI voice agent calls them 
 - **Business use case:** Add AI phone follow-up to GoHighLevel pipelines without changing how leads arrive.
 - **Who it is for:** Agencies and teams running their pipeline in GoHighLevel.
 - **Needs:** Ringee, GoHighLevel
-- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result
+- **Ringee features:** AI Voice Agent: Start Call; Ringee Trigger: Call Completed and Call Failed; AI Voice Agent: Get Call Result; AI Voice Agent: Get Call Status (bounded queued deadline check)
 - **Credentials:** Ringee API, HighLevel API, Header Auth (protects the webhook)
 - **Publication:** Not published (draft)
 
@@ -335,14 +342,15 @@ A GoHighLevel workflow sends each new lead to n8n; an AI voice agent calls them 
 2. Add the webhook action in GoHighLevel with name, phone, email and opportunityId.
 3. Select the Ringee credential and agent; connect HighLevel and choose a stage.
 4. Activate, then set the Ringee Trigger Production URL as the integration’s Outbound URL.
+5. Select the Ringee credential on Check queued call status. Connect Queue check: inspect attention items to your own idempotent follow-up for needs_attention results.
 
 **Sample data:** Webhook body {"name":"Ada Lovelace","phone":"+14155550123","email":"ada@example.com","opportunityId":"opp_123"}.
 
-**Error handling:** Each opportunity is called once (Idempotency Key = opportunity ID). Only a caller that sends the secret header can start a call; anything else is refused before any number is read. If the AI analysis is not ready after seven minutes the opportunity is left as it is.
+**Error handling:** Each opportunity is called once (Idempotency Key = opportunity ID). Only a caller that sends the secret header can start a call; anything else is refused before any number is read. If the AI analysis is not ready after seven minutes the opportunity is left as it is. Queued operations retain their ID/deadline and get one bounded status check even if no call event arrives. Cancelled, expired, failed or unresolved outcomes remain visible in execution output; inspect needs_attention items before any deliberate new call. The watcher does not write a duplicate CRM result.
 
 **Expected result:** The lead is called; the opportunity status is updated when the call ends.
 
-**Verification:** imported into n8n yes; nodes validated against n8n definitions yes; Ringee nodes run against a mock API yes; tested with live third-party accounts no.
+**Verification:** imported into n8n no; nodes validated against n8n definitions no; Ringee nodes run against a mock API no; tested with live third-party accounts no.
 
 [Ringee](https://ringee.io) · [Documentation](https://docs.ringee.io)
 

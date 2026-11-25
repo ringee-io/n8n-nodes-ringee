@@ -4,7 +4,12 @@ import type { JsonObject } from 'n8n-workflow';
 import { CREDENTIAL_NAME, ringeeRequest, type RingeeContext } from './client';
 
 /** What a Ringee server can promise, as `GET /api/v1/capabilities` reports it. */
-export type RingeeCapability = 'idempotentCalls' | 'agentDetail' | 'contacts' | 'calls';
+export type RingeeCapability =
+	| 'idempotentCalls'
+	| 'agentDetail'
+	| 'contacts'
+	| 'calls'
+	| 'queuedCalls';
 
 interface CapabilitiesResponse {
 	apiVersion?: number;
@@ -80,7 +85,9 @@ function tooOld(
 	const consequence =
 		capability === 'idempotentCalls'
 			? 'It does not confirm that it honors the Idempotency-Key header, so a retried Start Call could place a second paid call. Nothing was dialed.'
-			: 'It does not confirm that it offers this operation.';
+			: capability === 'queuedCalls'
+				? 'It does not confirm that it can cancel a call that is waiting for call capacity. Nothing was changed.'
+				: 'It does not confirm that it offers this operation.';
 	return new NodeOperationError(ctx.getNode(), 'This Ringee server is too old for this operation', {
 		itemIndex,
 		description: `${consequence} Update Ringee, or point the Base URL of the credential at Ringee Cloud (https://api.ringee.io). The versions each operation needs are listed in docs/compatibility.md.`,

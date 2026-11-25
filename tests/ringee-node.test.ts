@@ -185,9 +185,23 @@ describe('AI Voice Agent', () => {
 				expect(mock.placedCalls).toBe(1);
 			});
 
-			it('sends no key when the execution has no stable identity, rather than one that could hide a call', async () => {
-				await run(startParams(), { executionId: undefined });
-				expect(mock.requests[0].headers['idempotency-key']).toBeUndefined();
+			it('refuses a billable request without a stable execution identity or explicit key', async () => {
+				await expect(run(startParams(), { executionId: undefined })).rejects.toThrow(
+					/stable Idempotency Key/,
+				);
+				await expect(run(startParams(), { executionId: undefined })).rejects.toThrow(
+					/stable Idempotency Key/,
+				);
+				expect(mock.placedCalls).toBe(0);
+				expect(mock.requests.filter((r) => r.method === 'POST')).toHaveLength(0);
+			});
+
+			it('allows manual retries with an explicit persistent key and dials once', async () => {
+				const params = startParams({ options: { idempotencyKey: 'manual-record-123' } });
+				await run(params, { executionId: undefined });
+				const [again] = await run(params, { executionId: undefined });
+				expect(mock.placedCalls).toBe(1);
+				expect(again.json.idempotent_replayed).toBe(true);
 			});
 		});
 

@@ -170,6 +170,58 @@ const reachable = (
 	return seen;
 };
 
+/**
+ * The order n8n 2.x runs nodes in with `executionOrder: v1`, supposing every node
+ * returns items on every output (the worst case for what can run before what).
+ * It is depth-first, and the nodes a node leads to (from all its outputs, the
+ * error output included) go topmost first, then leftmost: the sort in
+ * `WorkflowExecute.processRunExecutionData` (n8n-core 2.49), which then puts them
+ * at the front of the stack. So a branch finishes, Waits included, before the
+ * branch beside it starts, and a node that fails and stops the run abandons every
+ * branch still waiting its turn.
+ */
+const runOrder = (workflow: Workflow, from: string): string[] => {
+	const byName = new Map(workflow.nodes.map((n) => [n.name, n]));
+	const order: string[] = [];
+	const stack = [from];
+	while (stack.length) {
+		const name = stack.shift()!;
+		if (order.includes(name)) continue;
+		order.push(name);
+		const next = Object.values(workflow.connections[name] ?? {})
+			.flat()
+			.flatMap((list) => list ?? [])
+			.map((connection) => byName.get(connection.node)!)
+			.sort((a, b) => a.position[1] - b.position[1] || a.position[0] - b.position[0]);
+		stack.unshift(...next.map((n) => n.name));
+	}
+	return order;
+};
+
+/**
+ * The nodes that run before a template's queue watcher and would stop the run,
+ * and the watcher with it, if they failed. Waits, Sets and the like have no
+ * outside system to fail on; everything else must continue on an error output.
+ */
+const unprotectedBeforeWatcher = (workflow: Workflow): string[] => {
+	const starter = workflow.nodes.find((n) => n.parameters.operation === 'startCall')!;
+	const order = runOrder(workflow, starter.name);
+	const cannotFail = new Set([
+		'n8n-nodes-base.noOp',
+		'n8n-nodes-base.set',
+		'n8n-nodes-base.if',
+		'n8n-nodes-base.switch',
+		'n8n-nodes-base.wait',
+	]);
+	return order.slice(1, order.indexOf('Was the operation queued?')).filter((name) => {
+		const node = workflow.nodes.find((n) => n.name === name)!;
+		return (
+			!cannotFail.has(node.type) &&
+			!['continueErrorOutput', 'continueRegularOutput'].includes(node.onError ?? '')
+		);
+	});
+};
+
 describe('the catalog', () => {
 	it('lists every template file, and only files that exist', () => {
 		const onDisk = [
@@ -439,6 +491,16 @@ describe.each(workflows)('template $entry.id', ({ entry, workflow, raw }) => {
 		}
 	});
 
+	it('never lets a failure disappear: every error output that is switched on goes somewhere', () => {
+		// "Continue (using error output)" with nothing on it makes the run succeed
+		// and hides the failure; the node a template ends it on is where a person
+		// attaches an alert.
+		for (const node of workflow.nodes.filter((n) => n.onError === 'continueErrorOutput')) {
+			const outputs = workflow.connections[node.name]?.main ?? [];
+			expect(outputs[1]?.length ?? 0, `${node.name}: error output goes nowhere`).toBeGreaterThan(0);
+		}
+	});
+
 	it('never acts on a call result before it has checked that the result exists', () => {
 		for (const reader of workflow.nodes.filter(
 			(n) =>
@@ -448,7 +510,8 @@ describe.each(workflows)('template $entry.id', ({ entry, workflow, raw }) => {
 		)) {
 			// The last try of a bounded retry may write what it has, labelled as pending.
 			if (/second try/i.test(reader.name)) continue;
-			const next = (workflow.connections[reader.name]?.main ?? []).flat();
+			// The success output: an error output carries no result to act on.
+			const next = workflow.connections[reader.name]?.main?.[0] ?? [];
 			for (const connection of next) {
 				const target = workflow.nodes.find((n) => n.name === connection.node)!;
 				expect(
@@ -519,5 +582,164 @@ describe('the HTTP Request alternative', () => {
 			false,
 		);
 		expect(existsSync(join(workflowDir, alternative.entry.file))).toBe(true);
+	});
+});
+
+describe.each(
+	workflows.filter(({ workflow }) =>
+		workflow.nodes.some(
+			(node) =>
+				node.type === 'n8n-nodes-ringee.ringee' && node.parameters.operation === 'startCall',
+		),
+	),
+)('queued deadline branch $entry.id', ({ workflow }) => {
+	it('closes eventless operations with bounded status reads and never redials', () => {
+		const byName = (name: string) => workflow.nodes.find((node) => node.name === name)!;
+		const starter = workflow.nodes.find((node) => node.parameters.operation === 'startCall')!;
+		const queued = byName('Was the operation queued?');
+		const remember = byName('Remember queued operation');
+		const wait = byName('Wait until queue deadline');
+		const status = byName('Check queued call status');
+		const outcome = byName('Queue check: inspect attention items');
+		expect(
+			workflow.connections[starter.name].main[0].some((edge) => edge.node === queued.name),
+		).toBe(true);
+		expect(reachable(workflow, starter.name, () => false).has(status.name)).toBe(true);
+		expect(status.parameters).toMatchObject({ resource: 'aiAgent', operation: 'getCallStatus' });
+		expect(status.onError).toBe('continueErrorOutput');
+		for (const branch of workflow.connections[status.name].main)
+			expect(branch.some((edge) => edge.node === outcome.name)).toBe(true);
+		const afterStatus = reachable(workflow, status.name, () => false);
+		expect(afterStatus.has(wait.name)).toBe(false);
+		expect(afterStatus.has(starter.name)).toBe(false);
+		expect(workflow.connections[outcome.name]).toBeUndefined();
+
+		const evaluate = (expression: unknown, json: Record<string, unknown>, inputs = [json]) =>
+			new Function(
+				'$json',
+				'$input',
+				'Date',
+				'return (' +
+					String(expression)
+						.replace(/^=\{\{/, '')
+						.replace(/\}\}$/, '') +
+					');',
+			)(
+				json,
+				{ all: () => inputs.map((value) => ({ json: value })) },
+				{ now: () => Date.UTC(2026, 11, 1, 12), parse: Date.parse },
+			);
+		const condition = (
+			queued.parameters.conditions as {
+				conditions: Array<{ leftValue: string; rightValue: string }>;
+			}
+		).conditions[0];
+		expect(evaluate(condition.leftValue, { status: 'queued' })).toBe(condition.rightValue);
+		expect(evaluate(condition.leftValue, { status: 'initiating' })).not.toBe(condition.rightValue);
+		const fields = (node: WNode) =>
+			(node.parameters.assignments as { assignments: Array<{ name: string; value: string }> })
+				.assignments;
+		expect(
+			evaluate(fields(remember).find((field) => field.name === 'call_id')!.value, {
+				call_id: 'operation-1',
+			}),
+		).toBe('operation-1');
+		expect(status.parameters.callId).toBe('={{ $json.call_id }}');
+		expect(wait.parameters.unit).toBe('seconds');
+		expect(
+			evaluate(wait.parameters.amount, {}, [
+				{ expires_at: '2026-12-01T12:01:00Z' },
+				{ expires_at: '2026-12-01T12:02:00Z' },
+			]),
+		).toBe(121);
+		for (const expiry of ['', 'invalid', '2026-11-01T00:00:00Z', '2027-01-01T00:00:00Z']) {
+			const seconds = evaluate(wait.parameters.amount, {}, [{ expires_at: expiry }]) as number;
+			expect(seconds).toBeGreaterThanOrEqual(1);
+			expect(seconds).toBeLessThanOrEqual(86_401);
+		}
+		const classification = fields(outcome).find((field) => field.name === 'queue_check')!.value;
+		const attention = fields(outcome).find((field) => field.name === 'needs_attention')!.value;
+		for (const value of ['expired', 'cancelled']) {
+			expect(evaluate(classification, { status: value })).toBe('never_dialed');
+			expect(evaluate(attention, { status: value })).toBe(true);
+		}
+		expect(evaluate(classification, { status: 'failed' })).toBe('failed');
+		for (const value of ['queued', 'created', 'initiating', 'in_progress', undefined]) {
+			expect(evaluate(classification, { status: value })).toBe('unresolved_inspect_ringee');
+			expect(evaluate(attention, { status: value })).toBe(true);
+		}
+		expect(evaluate(classification, { status: 'completed' })).toBe('ended_see_result_or_event');
+		expect(evaluate(attention, { status: 'completed' })).toBe(false);
+	});
+
+	it('runs after the other branches of the call, so its Wait delays nothing beside it', () => {
+		const starter = workflow.nodes.find((node) => node.parameters.operation === 'startCall')!;
+		const order = runOrder(workflow, starter.name);
+		const watcher = order.indexOf('Was the operation queued?');
+		expect(watcher, 'the watcher follows Start Call').toBeGreaterThan(0);
+		const inWatcher = reachable(workflow, 'Was the operation queued?', () => false);
+		for (const name of order.slice(watcher + 1))
+			expect(inWatcher.has(name), `${name} would wait behind the queue deadline`).toBe(true);
+	});
+
+	it('cannot be stopped by a failure beside it: what runs before it continues on error', () => {
+		expect(unprotectedBeforeWatcher(workflow)).toEqual([]);
+	});
+});
+
+describe('the run order the queue checks rely on', () => {
+	const node = (name: string, x: number, y: number): WNode => ({
+		id: name,
+		name,
+		type: 'n8n-nodes-base.noOp',
+		typeVersion: 1,
+		position: [x, y],
+		parameters: {},
+	});
+	const output = (...names: string[]) =>
+		names.map((name) => ({ node: name, type: 'main', index: 0 }));
+
+	it('runs the topmost branch first and finishes it before the next one starts', () => {
+		const workflow: Workflow = {
+			name: 'order',
+			nodes: [
+				node('start', 0, 0),
+				node('low', 100, 300),
+				node('high', 100, 0),
+				node('after', 300, 0),
+			],
+			connections: { start: { main: [output('low', 'high')] }, high: { main: [output('after')] } },
+		};
+		expect(runOrder(workflow, 'start')).toEqual(['start', 'high', 'after', 'low']);
+	});
+
+	it('goes leftmost first at the same height, and ranks an error output by position like any other', () => {
+		const workflow: Workflow = {
+			name: 'order',
+			nodes: [
+				node('start', 0, 0),
+				node('right', 400, 100),
+				node('left', 200, 100),
+				node('above', 900, 0),
+			],
+			connections: { start: { main: [output('right'), output('left', 'above')] } },
+		};
+		expect(runOrder(workflow, 'start')).toEqual(['start', 'above', 'left', 'right']);
+	});
+
+	it('catches the failure the queue watcher is isolated from: a step beside it that stops the run', () => {
+		for (const [id, step] of [
+			['00-quick-start-first-ai-call', 'Get call result'],
+			['02-automatic-lead-qualification', 'Mark row as called'],
+			['06-automated-missed-call-callback', 'Log the callback'],
+		] as const) {
+			const { workflow } = workflows.find((w) => w.entry.id === id)!;
+			expect(unprotectedBeforeWatcher(workflow), id).toEqual([]);
+			const unprotected = structuredClone(workflow);
+			delete unprotected.nodes.find((n) => n.name === step)!.onError;
+			expect(unprotectedBeforeWatcher(unprotected), `${id} without its error output`).toEqual([
+				step,
+			]);
+		}
 	});
 });

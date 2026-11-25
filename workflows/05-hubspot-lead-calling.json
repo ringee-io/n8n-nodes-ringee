@@ -389,6 +389,162 @@
         1220,
         460
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3116a980-5474-46d9-9fd1-0593b65859c8",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "queued",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f162dc29-878e-4ce2-a9b5-1d7f992ed641",
+      "name": "Was the operation queued?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        260,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9c151e25-8ebb-4e34-a3dc-9f69dd31337f",
+              "name": "call_id",
+              "value": "={{ $json.call_id }}",
+              "type": "string"
+            },
+            {
+              "id": "0b496732-e2de-4fa9-9f9c-e55fed6f70c7",
+              "name": "expires_at",
+              "value": "={{ $json.expires_at || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5d1c6bb4-8813-4f0e-a4c8-d4e72f8e4795",
+      "name": "Remember queued operation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        480,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.max(1, Math.min(86401, Math.ceil((Math.max(Date.now(), ...$input.all().map(item => Date.parse(item.json.expires_at || '') || Date.now())) - Date.now()) / 1000) + 1)) }}",
+        "unit": "seconds"
+      },
+      "id": "30f291c8-f534-4978-a318-0ca5f4166e0c",
+      "name": "Wait until queue deadline",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        820
+      ],
+      "webhookId": "5521a970-7a79-4044-a1e5-d2372aa49d82"
+    },
+    {
+      "parameters": {
+        "resource": "aiAgent",
+        "operation": "getCallStatus",
+        "callId": "={{ $json.call_id }}"
+      },
+      "id": "6d652977-2e39-427b-a7df-94d0caca3f3d",
+      "name": "Check queued call status",
+      "type": "n8n-nodes-ringee.ringee",
+      "typeVersion": 1,
+      "position": [
+        920,
+        820
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d62b8e1c-93f6-4010-bb8b-a8127567a914",
+              "name": "call_id",
+              "value": "={{ $json.call_id || $('Remember queued operation').item.json.call_id }}",
+              "type": "string"
+            },
+            {
+              "id": "d657f6d5-d0b4-4288-86d2-ca8d3038b588",
+              "name": "expires_at",
+              "value": "={{ $('Remember queued operation').item.json.expires_at }}",
+              "type": "string"
+            },
+            {
+              "id": "3855375a-7b17-4080-8a36-37ac2047593a",
+              "name": "status",
+              "value": "={{ $json.status || 'unresolved' }}",
+              "type": "string"
+            },
+            {
+              "id": "7b905543-5961-4d4e-b118-3096e9405954",
+              "name": "queue_check",
+              "value": "={{ ['cancelled', 'expired'].includes($json.status) ? 'never_dialed' : $json.status === 'failed' ? 'failed' : ['completed', 'no_answer', 'busy', 'voicemail'].includes($json.status) ? 'ended_see_result_or_event' : 'unresolved_inspect_ringee' }}",
+              "type": "string"
+            },
+            {
+              "id": "ee7d2bde-7e68-42fc-ae2c-b6cb67aa68fd",
+              "name": "needs_attention",
+              "value": "={{ !['completed', 'no_answer', 'busy', 'voicemail'].includes($json.status) }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9459cb76-a2a4-4dbd-a4dd-f11046067582",
+      "name": "Queue check: inspect attention items",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1140,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Queued calls need a status path\nSelect your Ringee credential on **Check queued call status** too. This branch saves the operation ID and deadline in execution data, waits until the latest deadline in this batch (at most 24 hours plus one second) and reads status once, with bounded read retries. Expired/cancelled calls never dial; failed or unresolved operations need inspection. **Queue check: inspect attention items** retains the ID and marks `needs_attention`. Connect that output to your own idempotent follow-up if required. It does not create a call, retry Start Call, or write a second CRM result. The existing event/result branch still handles dialed calls. No event is expected for an operation that never dialed. Preserve n8n execution/Wait data and configure error notifications before production use.\n\n[Queue documentation](https://github.com/ringee-io/n8n-nodes-ringee/blob/main/docs/queue-and-capacity.md)",
+        "height": 360,
+        "width": 590,
+        "color": 5
+      },
+      "id": "a847321b-f2a9-4af7-bb03-49629b4cb7ab",
+      "name": "Queued operations can end without an event",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        820
+      ]
     }
   ],
   "connections": {
@@ -478,7 +634,13 @@
     },
     "Start the call": {
       "main": [
-        [],
+        [
+          {
+            "node": "Was the operation queued?",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Call not placed: see the error",
@@ -522,6 +684,58 @@
         [
           {
             "node": "Log the call in HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was the operation queued?": {
+      "main": [
+        [
+          {
+            "node": "Remember queued operation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Remember queued operation": {
+      "main": [
+        [
+          {
+            "node": "Wait until queue deadline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait until queue deadline": {
+      "main": [
+        [
+          {
+            "node": "Check queued call status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check queued call status": {
+      "main": [
+        [
+          {
+            "node": "Queue check: inspect attention items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue check: inspect attention items",
             "type": "main",
             "index": 0
           }

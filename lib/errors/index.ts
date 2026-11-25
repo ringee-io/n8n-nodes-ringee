@@ -120,6 +120,27 @@ export function describeRingeeFailure(input: {
 					retryable: false,
 				};
 			}
+			// A call that waited for capacity and then was cancelled or gave up. The
+			// key must not quietly place it again.
+			if (
+				(body as RingeeErrorBody | undefined)?.code === 'idempotency_key_cancelled' ||
+				(body as RingeeErrorBody | undefined)?.code === 'idempotency_key_expired'
+			) {
+				return {
+					message: server || 'The call under this Idempotency Key was never dialed',
+					description:
+						'It was cancelled, or waited too long for call capacity, before it was placed. Nothing was dialed and nothing was charged. Give the call a new Idempotency Key to place it again.',
+					retryable: false,
+				};
+			}
+			if ((body as RingeeErrorBody | undefined)?.code === 'call_not_cancellable') {
+				return {
+					message: server || 'This call can no longer be cancelled',
+					description:
+						'Only a call that is still waiting for call capacity can be cancelled. One that is already dialing has to be hung up in Ringee.',
+					retryable: false,
+				};
+			}
 			return {
 				message: server || 'Ringee reported a conflict',
 				description:
@@ -127,6 +148,23 @@ export function describeRingeeFailure(input: {
 				retryable: false,
 			};
 		case 429: {
+			// Ringee's calls are paced across everyone who uses it: this is not the
+			// API rate limit, and sending the same request again at once cannot help.
+			const code = (body as RingeeErrorBody | undefined)?.code;
+			if (code === 'dispatch_queue_full' || code === 'dispatch_deferred') {
+				const retryMs = (body as { retryAfterMs?: number } | undefined)?.retryAfterMs;
+				const seconds = retryAfterSeconds ?? (retryMs ? Math.ceil(retryMs / 1000) : undefined);
+				return {
+					message:
+						code === 'dispatch_queue_full'
+							? 'Ringee has as many calls waiting for call capacity as it may'
+							: 'Ringee has no call capacity free right now',
+					description: `Nothing was queued and nothing was dialed.${
+						seconds ? ` Try again in about ${seconds} seconds.` : ''
+					} Send the same request again with the same Idempotency Key, after a Wait node, in smaller batches (see docs/queue-and-capacity.md).`,
+					retryable: true,
+				};
+			}
 			const wait = retryAfterSeconds ? ` Try again in ${retryAfterSeconds} seconds.` : '';
 			return {
 				message: 'Ringee is limiting how fast this integration can call the API',

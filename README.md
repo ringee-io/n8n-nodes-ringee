@@ -89,14 +89,14 @@ How the key works:
 
 All resources use the standard **Resource → Operation** selectors. Lists have **Return All** and **Limit**; items stay linked to their inputs, and **Continue On Fail** keeps one failed item from stopping the rest.
 
-| Resource           | Operations                                                                           |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| **AI Voice Agent** | Get · Get Many · **Start Call** · Get Call Status · Get Call Result · Get Many Calls |
-| **Call**           | Get · Get Many · Create Dialer Link (a link a person opens to place a human call)    |
-| **Contact**        | Create · Create or Update · Get · Get Many · Update · Delete                         |
-| **Phone Number**   | Get · Get Many (the numbers an AI voice agent can call from)                         |
-| **Recording**      | Get · Download (as binary audio)                                                     |
-| **Transcript**     | Get · Get AI Analysis · Get Summary · Get Extracted Information                      |
+| Resource           | Operations                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| **AI Voice Agent** | Get · Get Many · **Start Call** · Cancel Call · Get Call Status · Get Call Result · Get Many Calls |
+| **Call**           | Get · Get Many · Create Dialer Link (a link a person opens to place a human call)                  |
+| **Contact**        | Create · Create or Update · Get · Get Many · Update · Delete                                       |
+| **Phone Number**   | Get · Get Many (the numbers an AI voice agent can call from)                                       |
+| **Recording**      | Get · Download (as binary audio)                                                                   |
+| **Transcript**     | Get · Get AI Analysis · Get Summary · Get Extracted Information                                    |
 
 Agents, caller numbers and contacts are picked from searchable lists (or by ID). The variables an agent accepts, such as first name or what the call is about, appear as fields once you choose the agent.
 
@@ -109,9 +109,12 @@ Agents, caller numbers and contacts are picked from searchable lists (or by ID).
 	"call_id": "5a6bb1fc-00ea-4996-8fe4-0a221d047162",
 	"status": "initiating",
 	"finished": false,
+	"queued": false,
 	"idempotent_replayed": false
 }
 ```
+
+Ringee paces the calls it starts. When a call has to wait for capacity it is **accepted, not dialed**: `status` is `queued`, `queued` is `true`, and `expires_at` says when it gives up. A queued call that is never dialed costs nothing and sends no event; **Cancel Call** withdraws it. Large batches, a full queue and what to do about each: [docs/queue-and-capacity.md](docs/queue-and-capacity.md).
 
 | Option              | What it does                                                                                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -127,7 +130,7 @@ Ringee decides what is allowed: no credits, a number on the Do-Not-Call list, an
 A call takes a minute or two and its analysis a little longer, so there are two ways to get the result:
 
 - **React to the event** with the [Ringee Trigger](#ringee-trigger) (`Call Completed`), then, after a short **Wait**, read the AI's result with **Get Call Result**. Most templates do this. Ringee publishes agent-specific results such as `confirmed` or `cannot_attend` only through the result endpoint, not as events. [Why and how](docs/events-and-results.md).
-- **Poll** with **Get Call Status** (`finished: true/false`) or **Get Call Result** inside a bounded loop. Use explicit timeouts; the [quick start](workflows/00-quick-start-first-ai-call.json) shows a single wait-then-read.
+- **Poll** with **Get Call Status** (`finished: true/false`, `queued: true/false`) or **Get Call Result** inside a bounded loop. Use explicit timeouts; the [quick start](workflows/00-quick-start-first-ai-call.json) shows a single wait-then-read.
 
 ### Never a second paid call
 

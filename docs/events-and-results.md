@@ -1,6 +1,6 @@
 # Reading results: events and polling
 
-A phone call is not instant. Start Call returns in a second; the call rings, connects, ends, and only then does Ringee's AI produce a summary, a sentiment and the structured data. This page explains how a workflow should wait for that without polling blindly or running twice.
+A phone call is not instant. Start Call returns an operation that may be queued. If dispatched, the call rings, connects and ends; Ringee's AI then produces a summary, a sentiment and the structured data. This page explains how a workflow should wait for that without polling blindly or running twice.
 
 ## The ids you will meet
 
@@ -14,10 +14,13 @@ The Call, Transcript and Recording operations accept **either** call id. To find
 
 ## Event first, then read
 
-Most workflows are two halves:
+Keep both an event path and a bounded status path:
 
-1. **Start** the call (`Start Call`, with an External ID and an Idempotency Key).
-2. A separate **Ringee Trigger** workflow reacts when the call ends (`Call Completed`, `Call Failed`), **waits** a minute or two for the AI analysis, then reads the result with **Get Call Result**.
+1. **Start** the call (`Start Call`, with an External ID and a persistent Idempotency Key). Save `call_id`, the returned state and `expires_at` in your workflow record. A queued response accepts the operation; it does not promise that a call will be dialed.
+2. If queued, **Wait** until the deadline or poll **Get Call Status** a fixed number of times. Handle terminal `expired`, `cancelled` and pre-dial `failed` results here: they produce no telephony event. If the call started, continue with the event path or bounded polling; the queue deadline no longer ends a live call. Include a final status check and a branch for an unresolved operation.
+3. A separate **Ringee Trigger** workflow reacts when a dialed call ends (`Call Completed`, `Call Failed`), **waits** a minute or two for the AI analysis, then reads the result with **Get Call Result**. Correlate with the saved agent-run `call_id` or External ID. Make the downstream result handler idempotent because the status and event paths can both observe completion.
+
+The following event path handles calls that were dialed. Pair it with step 2 for queued operations; see [queue-and-capacity.md](queue-and-capacity.md).
 
 ```text
 Ringee Trigger (Call Completed, Call Failed)   filter: only AI agent calls, External ID starts with "reminder-"
@@ -37,7 +40,7 @@ They are not separate events. The transcript travels in `data.call.transcription
 
 ## Polling, if you must
 
-Prefer the trigger. If you poll, bound it: a fixed number of attempts with a **Wait** between them (the templates use 2 minutes, then 5), and a branch for "gave up". Never loop without a limit around a paid operation. `Get Call Status` returns `finished` (`true` once the status is `completed`, `no_answer`, `busy`, `voicemail` or `failed`).
+Use the trigger for dialed calls and a bounded status path for queued operations that may never dial. Bound polling: a fixed number of attempts with a **Wait** between them (the templates use 2 minutes, then 5), and a branch for "gave up". Never loop without a limit around a paid operation. `Get Call Status` returns `finished` (`true` once the status is `completed`, `no_answer`, `busy`, `voicemail`, `failed`, `cancelled` or `expired`) and `queued` (`true` while Ringee is still waiting for call capacity and nothing has been dialed). A call that is queued, cancelled or expired sends **no event**: see [queue-and-capacity.md](queue-and-capacity.md).
 
 ## What the trigger does for you
 

@@ -6,8 +6,16 @@
 
 // ── Calls ───────────────────────────────────────────────────────────────────
 
-/** Status of an AI voice agent call. The last five are final. */
+/**
+ * Status of an AI voice agent call.
+ *
+ * `queued` is a call Ringee accepted but has not dialed: it is waiting for
+ * provider capacity (docs/queue-and-capacity.md). It becomes `initiating` when
+ * it is placed, or `cancelled` / `expired` when it never will be. None of those
+ * three has dialed anything or cost anything.
+ */
 export const AGENT_CALL_STATUSES = [
+	'queued',
 	'created',
 	'initiating',
 	'ringing',
@@ -17,15 +25,27 @@ export const AGENT_CALL_STATUSES = [
 	'busy',
 	'voicemail',
 	'failed',
+	'cancelled',
+	'expired',
 ] as const;
 export type AgentCallStatus = (typeof AGENT_CALL_STATUSES)[number];
 
+/** A final status never changes again: the last seven. */
 export const AGENT_CALL_FINAL_STATUSES: readonly AgentCallStatus[] = [
 	'completed',
 	'no_answer',
 	'busy',
 	'voicemail',
 	'failed',
+	'cancelled',
+	'expired',
+];
+
+/** Statuses of a call that was never dialed, and never will be. */
+export const AGENT_CALL_NOT_DIALED_STATUSES: readonly AgentCallStatus[] = [
+	'queued',
+	'cancelled',
+	'expired',
 ];
 
 /** Outcomes an AI voice agent reports; the first two groups are legacy spellings. */
@@ -122,11 +142,16 @@ export interface RingeeStartCallResponse {
 	status: AgentCallStatus;
 	/** Only present when an Idempotency-Key was sent. */
 	idempotent_replayed?: boolean;
+	/** Only while the call is `queued`: when it was accepted and when it gives up waiting. */
+	queued_at?: string;
+	expires_at?: string;
 }
 
 export interface RingeeAgentCallResult {
 	call_id: string;
 	status: AgentCallStatus;
+	queued_at?: string;
+	expires_at?: string;
 	outcome: AgentOutcome | null;
 	summary: string | null;
 	sentiment: string | null;

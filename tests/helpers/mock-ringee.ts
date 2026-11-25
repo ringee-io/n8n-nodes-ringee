@@ -130,11 +130,23 @@ export class MockRingee {
 	/** What `GET /v1/capabilities` answers; `null` is a Ringee that predates the route. */
 	capabilities: Json | null = {
 		apiVersion: 1,
-		capabilities: { agentDetail: true, contacts: true, calls: true, idempotentCalls: true },
+		capabilities: {
+			agentDetail: true,
+			contacts: true,
+			calls: true,
+			idempotentCalls: true,
+			queuedCalls: true,
+		},
 	};
 	redirectTo: string | null = null;
 	/** Place the next call, then drop the connection before answering: a lost response. */
 	dropNextStartResponse = false;
+	/** The next N Start Calls find no call capacity and are queued instead of dialed. */
+	queueNext = 0;
+	/** How long a queued call may wait before it gives up (`expires_at - queued_at`). */
+	queueWindowMs = 2 * 3600_000;
+	/** Every Start Call answers 429 `dispatch_queue_full` while this is set. */
+	queueFull = false;
 
 	private defaults?: {
 		agents: unknown;
@@ -174,11 +186,20 @@ export class MockRingee {
 		}
 		this.capabilities = {
 			apiVersion: 1,
-			capabilities: { agentDetail: true, contacts: true, calls: true, idempotentCalls: true },
+			capabilities: {
+				agentDetail: true,
+				contacts: true,
+				calls: true,
+				idempotentCalls: true,
+				queuedCalls: true,
+			},
 		};
 		this.requests.length = 0;
 		this.capabilityRequests.length = 0;
 		this.failNext = [];
+		this.queueNext = 0;
+		this.queueWindowMs = 2 * 3600_000;
+		this.queueFull = false;
 		this.agentCalls.clear();
 		this.keys.clear();
 		this.placedCalls = 0;
@@ -255,6 +276,24 @@ export class MockRingee {
 				return send(200, this.page(this.agents, url, { callerNumbers: this.callerNumbers }));
 			}
 			if (segments[3] === 'phone-numbers' && method === 'GET') return send(200, this.callerNumbers);
+			if (segments[3] === 'calls' && segments[4] && segments[5] === 'cancel' && method === 'POST') {
+				const call = this.agentCalls.get(segments[4]);
+				if (!call) return send(404, { statusCode: 404, message: 'AI voice agent call not found' });
+				if (call.status !== 'queued') {
+					return send(409, {
+						statusCode: 409,
+						error: 'Conflict',
+						code: 'call_not_cancellable',
+						status: call.status,
+						...(call.status === 'queued'
+							? { queued_at: call.queued_at, expires_at: call.expires_at }
+							: {}),
+						message: `This call is ${String(call.status)} and can no longer be cancelled before it is dialed.`,
+					});
+				}
+				call.status = 'cancelled';
+				return send(200, { id: call.id, status: 'cancelled' });
+			}
 			if (segments[3] === 'calls' && segments[4] && method === 'GET') {
 				const call = this.agentCalls.get(segments[4]);
 				if (!call) return send(404, { statusCode: 404, message: 'AI voice agent call not found' });
@@ -290,6 +329,16 @@ export class MockRingee {
 					const earlierId = this.keys.get(idem);
 					if (earlierId) {
 						const earlier = this.agentCalls.get(earlierId)!;
+						// A call withdrawn or expired in the queue was never dialed: the key
+						// must not quietly place it, so it is answered as Ringee answers.
+						if (earlier.status === 'cancelled' || earlier.status === 'expired') {
+							return send(409, {
+								statusCode: 409,
+								error: 'Conflict',
+								code: `idempotency_key_${String(earlier.status)}`,
+								message: `The call under this Idempotency-Key was ${String(earlier.status)} before it was dialed. Nothing was dialed.`,
+							});
+						}
 						if (earlier.to !== body.to) {
 							return send(422, {
 								statusCode: 422,
@@ -299,33 +348,58 @@ export class MockRingee {
 						}
 						return send(
 							200,
-							{ id: earlierId, status: earlier.status, idempotent_replayed: true },
+							{
+								id: earlierId,
+								status: earlier.status,
+								idempotent_replayed: true,
+								...(earlier.status === 'queued'
+									? { queued_at: earlier.queued_at, expires_at: earlier.expires_at }
+									: {}),
+							},
 							{ 'idempotent-replayed': 'true' },
 						);
 					}
 				}
+				if (this.queueFull) {
+					return send(429, {
+						statusCode: 429,
+						error: 'Too Many Requests',
+						code: 'dispatch_queue_full',
+						reason: 'workspace_full',
+						retryAfterMs: 30_000,
+						message:
+							'This workspace already has as many calls waiting to be dialed as it may. Nothing was queued; retry in 30s.',
+					});
+				}
 				const id = randomUUID();
+				const queued = this.queueNext > 0;
+				if (queued) this.queueNext -= 1;
+				// One clock reading, so the window is exactly `queueWindowMs`.
+				const queuedAtMs = Date.now();
+				const queuedAt = new Date(queuedAtMs).toISOString();
+				const expiresAt = new Date(queuedAtMs + this.queueWindowMs).toISOString();
 				this.agentCalls.set(id, {
 					id,
 					to: body.to,
 					agentId: agent.id,
-					status: 'initiating',
+					status: queued ? 'queued' : 'initiating',
+					...(queued ? { queued_at: queuedAt, expires_at: expiresAt } : {}),
 					metadata: body.metadata ?? {},
 					variables: body.variables ?? {},
 				});
 				if (idem) this.keys.set(idem, id);
-				this.placedCalls += 1;
+				// A queued call has not been dialed: it is not a placed call yet.
+				if (!queued) this.placedCalls += 1;
 				if (this.dropNextStartResponse) {
 					this.dropNextStartResponse = false;
 					req.socket.destroy();
 					return;
 				}
-				return send(
-					201,
-					idem
-						? { id, status: 'initiating', idempotent_replayed: false }
-						: { id, status: 'initiating' },
-				);
+				const answer: Json = queued
+					? { id, status: 'queued', queued_at: queuedAt, expires_at: expiresAt }
+					: { id, status: 'initiating' };
+				if (idem) answer.idempotent_replayed = false;
+				return send(queued ? 202 : 201, answer);
 			}
 		}
 
@@ -448,10 +522,28 @@ export class MockRingee {
 		return created;
 	}
 
+	/** A queued call finds capacity and is dialed. */
+	dispatchQueued(callId: string): void {
+		const call = this.agentCalls.get(callId);
+		if (call?.status !== 'queued') throw new Error(`call ${callId} is not queued`);
+		call.status = 'initiating';
+		this.placedCalls += 1;
+	}
+
+	/** A queued call waited too long and gave up without dialing. */
+	expireQueued(callId: string): void {
+		const call = this.agentCalls.get(callId);
+		if (call?.status !== 'queued') throw new Error(`call ${callId} is not queued`);
+		call.status = 'expired';
+	}
+
 	private resultOf(call: Json): Json {
 		return {
 			call_id: call.id,
 			status: call.status,
+			...(call.status === 'queued'
+				? { queued_at: call.queued_at, expires_at: call.expires_at }
+				: {}),
 			outcome: call.status === 'completed' ? 'confirmed' : null,
 			summary: call.status === 'completed' ? 'Ada confirmed.' : null,
 			sentiment: null,
