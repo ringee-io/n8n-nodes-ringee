@@ -6,7 +6,7 @@ All notable changes. Format: [Keep a Changelog](https://keepachangelog.com), ver
 
 ### Changed
 
-- Support contact is now **hi@ringee.io** (package author, `SECURITY.md`, and the two error messages that point users to support).
+- Support contact is now **hello@ringee.io** (package author, `SECURITY.md`, and the two error messages that point users to support).
 
 ## [0.1.1] - 2026-11-26
 

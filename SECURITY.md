@@ -4,7 +4,7 @@ This package handles Ringee API keys, signs-and-verifies webhooks, and can start
 
 ## Report a vulnerability
 
-**Do not open a public issue.** Email **hi@ringee.io** with the subject "n8n-nodes-ringee security", or use GitHub's **Report a vulnerability** (private advisories) on this repository. Include what you found, how to reproduce it, and the version. You will get an acknowledgement within three working days.
+**Do not open a public issue.** Email **hello@ringee.io** with the subject "n8n-nodes-ringee security", or use GitHub's **Report a vulnerability** (private advisories) on this repository. Include what you found, how to reproduce it, and the version. You will get an acknowledgement within three working days.
 
 Please give us a reasonable time to fix a problem before disclosing it.
 

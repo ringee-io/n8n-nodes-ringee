@@ -82,7 +82,8 @@ export function describeRingeeFailure(input: {
 			if (/outbound calling is disabled/i.test(server)) {
 				return {
 					message: 'Outbound calling is turned off for this Ringee account',
-					description: 'Ask the Ringee account owner to enable calling, or contact hi@ringee.io.',
+					description:
+						'Ask the Ringee account owner to enable calling, or contact hello@ringee.io.',
 					retryable: false,
 				};
 			}
@@ -188,7 +189,7 @@ export function describeRingeeFailure(input: {
 			if (status >= 500) {
 				return {
 					message: 'Ringee could not complete the request',
-					description: `Ringee answered with HTTP ${status}${server ? `: ${server}` : ''}. This is usually temporary; try again shortly. If it continues, check https://ringee.io or contact hi@ringee.io.`,
+					description: `Ringee answered with HTTP ${status}${server ? `: ${server}` : ''}. This is usually temporary; try again shortly. If it continues, check https://ringee.io or contact hello@ringee.io.`,
 					retryable: true,
 				};
 			}
