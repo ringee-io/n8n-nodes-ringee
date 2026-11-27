@@ -2,6 +2,12 @@
 
 All notable changes. Format: [Keep a Changelog](https://keepachangelog.com), versions follow [semver](https://semver.org). A release that needs a newer Ringee says so under **Needs Ringee**.
 
+## [Unreleased]
+
+### Changed
+
+- Support contact is now **hi@ringee.io** (package author, `SECURITY.md`, and the two error messages that point users to support).
+
 ## [0.1.1] - 2026-11-26
 
 Same code as 0.1.0, published from GitHub Actions with an npm provenance statement so n8n can verify it. Use this version, not 0.1.0.
