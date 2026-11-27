@@ -2,9 +2,9 @@
 
 All notable changes. Format: [Keep a Changelog](https://keepachangelog.com), versions follow [semver](https://semver.org). A release that needs a newer Ringee says so under **Needs Ringee**.
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-26
 
-First version. Not yet published to npm and not yet verified by n8n.
+First version. Not yet verified by n8n.
 
 ### Added
 
@@ -25,7 +25,7 @@ First version. Not yet published to npm and not yet verified by n8n.
 
 ### Needs Ringee
 
-The public API additions that ship with this node (`ringee-app`, not yet deployed): `GET /api/v1/ai-voice-agents/:id`, the `Idempotency-Key` header on Start Call, `/api/v1/contacts`, `/api/v1/calls`, and, for queued calls, `202 queued` on Start Call, `POST /api/v1/ai-voice-agents/calls/:id/cancel` and the `queuedCalls` capability. See [docs/compatibility.md](docs/compatibility.md).
+The public API additions that ship with this node (`ringee-app`, deployed on api.ringee.io; all five capabilities confirmed through `GET /api/v1/capabilities` on 2026-11-26): `GET /api/v1/ai-voice-agents/:id`, the `Idempotency-Key` header on Start Call, `/api/v1/contacts`, `/api/v1/calls`, and, for queued calls, `202 queued` on Start Call, `POST /api/v1/ai-voice-agents/calls/:id/cancel` and the `queuedCalls` capability. See [docs/compatibility.md](docs/compatibility.md).
 
 ### Known limits
 
