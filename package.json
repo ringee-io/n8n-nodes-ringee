@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-ringee",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Ringee community node for n8n: start AI voice agent phone calls, read call results, transcripts and recordings, manage contacts, and react to call events.",
 	"license": "MIT",
 	"homepage": "https://ringee.io",

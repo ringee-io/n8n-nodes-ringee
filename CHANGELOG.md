@@ -2,7 +2,7 @@
 
 All notable changes. Format: [Keep a Changelog](https://keepachangelog.com), versions follow [semver](https://semver.org). A release that needs a newer Ringee says so under **Needs Ringee**.
 
-## [Unreleased]
+## [0.1.2] - 2026-11-26
 
 ### Changed
 
