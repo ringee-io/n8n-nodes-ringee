@@ -67,7 +67,7 @@
 	},
 	"devDependencies": {
 		"@n8n/node-cli": "^0.58.5",
-		"@types/node": "^22.10.0",
+		"@types/node": "^26.6.6",
 		"eslint": "9.32.0",
 		"n8n-workflow": "^2.49.3",
 		"prettier": "3.6.2",
