@@ -2,9 +2,13 @@
 
 All notable changes. Format: [Keep a Changelog](https://keepachangelog.com), versions follow [semver](https://semver.org). A release that needs a newer Ringee says so under **Needs Ringee**.
 
+## [0.1.1] - 2026-11-26
+
+Same code as 0.1.0, published from GitHub Actions with an npm provenance statement so n8n can verify it. Use this version, not 0.1.0.
+
 ## [0.1.0] - 2026-11-26
 
-First version. Not yet verified by n8n.
+First version. Published from a local machine without npm provenance, so n8n cannot verify it; superseded by 0.1.1.
 
 ### Added
 
